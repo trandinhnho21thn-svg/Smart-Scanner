@@ -30,7 +30,15 @@
 
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: var(--app-font); }
         body { background-color: var(--bg-dark); color: var(--text-main); line-height: 1.5; overflow-x: hidden; }
-        #app { display: flex; flex-direction: column; min-height: 100vh; max-width: 500px; margin: 0 auto; }
+        #app { display: flex; flex-direction: column; min-height: 100vh; width: 100%; max-width: 1200px; margin: 0 auto; }
+        
+        /* Layout Grid for Desktop */
+        @media (min-width: 850px) {
+            main { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; align-items: start; }
+            #data-section { grid-column: span 2; }
+            header { flex-direction: row; align-items: center; }
+            .author-card { width: auto; flex: 1; margin: 0 2rem; }
+        }
         
         header { padding: 1rem; background: rgba(30, 41, 59, 0.95); backdrop-filter: blur(10px); display: flex; flex-direction: column; gap: 0.8rem; position: sticky; top: 0; z-index: 100; border-bottom: 2px solid var(--primary); }
         .header-top { display: flex; justify-content: space-between; align-items: center; width: 100%; }
@@ -318,12 +326,26 @@
 
         async function init() {
             try {
-                const cameras = await Html5Qrcode.getCameras();
-                if (cameras.length > 0) {
-                    await html5QrCode.start({ facingMode: "environment" }, { fps: 10 }, () => {});
-                }
+                // Try to use environment camera first (mobile)
+                // If fails or not available (desktop), use any available camera
+                const constraints = { 
+                    video: { 
+                        facingMode: { ideal: "environment" } 
+                    } 
+                };
+                
+                await html5QrCode.start(
+                    constraints.video, 
+                    { fps: 10, qrbox: { width: 250, height: 250 } },
+                    () => {}
+                );
             } catch (err) {
-                alert("Lỗi camera: Vui lòng sử dụng HTTPS hoặc Localhost để mở camera.");
+                console.log("Retrying with simple constraints...");
+                try {
+                    await html5QrCode.start({ facingMode: "user" }, { fps: 10 }, () => {});
+                } catch (e) {
+                    alert("Lỗi camera: Vui lòng đảm bảo thiết bị có camera và bạn đang sử dụng HTTPS.");
+                }
             }
             renderTable();
         }
