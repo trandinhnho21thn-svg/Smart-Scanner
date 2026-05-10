@@ -6,6 +6,7 @@
     <title>Smart Scanner PRO - Trần Đình Nhỡ</title>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/html5-qrcode/html5-qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.5.25/dist/jspdf.plugin.autotable.min.js"></script>
@@ -109,6 +110,7 @@
             <div class="header-top">
                 <div class="logo"><h1>Smart Scanner PRO</h1></div>
                 <div class="actions" style="display: flex; align-items: center; gap: 0.8rem;">
+                    <button onclick="goToHome()" title="Trang chủ" style="background:none; border:none; color:var(--primary-light); cursor:pointer;"><i data-lucide="home"></i></button>
                     <button id="btn-export-xlsx" title="Xuất Excel" style="background:none; border:none; color:#22c55e; cursor:pointer;"><i data-lucide="file-spreadsheet"></i></button>
                     <button id="btn-export-pdf" title="Xuất PDF" style="background:none; border:none; color:#ef4444; cursor:pointer;"><i data-lucide="file-text"></i></button>
                     <button id="btn-clear" title="Xóa dữ liệu" style="background:none; border:none; color:var(--text-muted); cursor:pointer;"><i data-lucide="trash-2"></i></button>
@@ -128,6 +130,10 @@
             <section id="step-1-ui" class="step-card">
                 <div class="step-title"><i data-lucide="file-text"></i> THÔNG TIN PHIẾU GỬI</div>
                 
+                <button class="btn-action btn-main" style="width:100%; margin-bottom: 1.5rem; background: linear-gradient(135deg, #6366f1, #a855f7); box-shadow: 0 4px 15px rgba(168, 85, 247, 0.4);" onclick="openScanner('auto-all')">
+                    <i data-lucide="sparkles"></i> TỰ ĐỘNG QUÉT / TẢI ẢNH PHIẾU
+                </button>
+                
                 <div class="field-row">
                     <div class="field-group"><label>Mã vận đơn</label><input type="text" id="in-waybill" placeholder="..."></div>
                     <button class="btn-scan-trigger" onclick="openScanner('waybill')"><i data-lucide="camera"></i></button>
@@ -146,6 +152,7 @@
                 </div>
                 
                 <button id="btn-next" class="btn-action btn-main" style="width:100%; margin-top:1rem;">Tiếp tục quét SP <i data-lucide="arrow-right"></i></button>
+                <button onclick="goToHome()" class="btn-action" style="width:100%; margin-top:0.5rem; background:rgba(255,255,255,0.05); color:var(--text-muted); border:1px solid rgba(255,255,255,0.1); font-size:0.8rem;"><i data-lucide="log-out"></i> Thoát ra trang chủ</button>
             </section>
 
             <!-- BƯỚC 2 -->
@@ -157,11 +164,21 @@
                     <div class="field-group"><label>Mã Seri sản phẩm</label><input type="text" id="in-serial" placeholder="..."></div>
                     <button class="btn-scan-trigger" onclick="openScanner('serial')"><i data-lucide="camera"></i></button>
                 </div>
+
+                <div id="serial-preview-box" class="hidden" style="margin-bottom: 1rem; text-align: center;">
+                    <p style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 0.5rem;">ẢNH SERI & TÌNH TRẠNG (KÉO NGANG ĐỂ XEM):</p>
+                    <div id="images-container" style="display: flex; gap: 0.5rem; overflow-x: auto; padding: 0.5rem; background: rgba(0,0,0,0.2); border-radius: 8px;">
+                        <img id="serial-img-preview" src="" style="height: 100px; border-radius: 8px; border: 1px solid var(--primary); flex-shrink: 0;">
+                    </div>
+                </div>
+
+                <button onclick="openScanner('product_extra')" class="btn-action" style="width:100%; margin-bottom:1.5rem; background:rgba(34, 197, 94, 0.1); border:1px solid #22c55e; color:#22c55e;"><i data-lucide="plus-circle"></i> CHỤP ẢNH TOÀN CẢNH / TÌNH TRẠNG</button>
                 
                 <div style="display: flex; gap: 1rem;">
                     <button onclick="saveProduct()" class="btn-action btn-main" style="flex:1; background: var(--success);"><i data-lucide="save"></i> Lưu SP</button>
                     <button onclick="finishWaybill()" class="btn-action btn-main" style="flex:1; background: var(--bg-dark); border:1px solid #444;"><i data-lucide="check-circle"></i> Hoàn tất</button>
                 </div>
+                <button onclick="goBackToStep1()" class="btn-action" style="width:100%; margin-top:1rem; background:rgba(99, 102, 241, 0.1); border:1px solid var(--primary); color:white; font-weight:bold;"><i data-lucide="arrow-left"></i> QUAY LẠI BƯỚC 1</button>
             </section>
 
             <section id="data-ui">
@@ -191,6 +208,8 @@
             </div>
 
             <button id="btn-capture" class="btn-action btn-main"><i data-lucide="camera"></i> Chụp ảnh & Khoanh vùng</button>
+            <button id="btn-upload" class="btn-action" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white;"><i data-lucide="image"></i> Tải ảnh từ máy</button>
+            <button onclick="closeScanner()" class="btn-action" style="background:none; border:1px solid rgba(255,255,255,0.2); color:var(--text-muted);"><i data-lucide="arrow-left"></i> Quay lại (Hủy quét)</button>
             <button id="btn-retake" class="btn-action btn-main hidden" style="background:#444;"><i data-lucide="refresh-cw"></i> Chụp lại</button>
 
             <div id="verify-box" class="verify-box">
@@ -204,6 +223,7 @@
     </div>
 
     <div id="loading"><div class="spinner"></div><p id="loading-text">Đang xử lý...</p></div>
+    <input type="file" id="file-input" class="hidden" accept="image/*">
 
     <script>
         lucide.createIcons();
@@ -213,6 +233,7 @@
             isCaptured: false,
             startX: 0, startY: 0, isDrawing: false,
             capturedImage: null,
+            productImages: [], // Danh sách ảnh toàn cảnh
             scanner: null
         };
 
@@ -221,6 +242,49 @@
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('app').classList.remove('hidden');
             renderTable();
+            initUploadLogic();
+        }
+
+        function initUploadLogic() {
+            const fileInput = document.getElementById('file-input');
+            const btnUpload = document.getElementById('btn-upload');
+            
+            if (btnUpload) {
+                btnUpload.onclick = () => fileInput.click();
+            }
+            
+            if (fileInput) {
+                fileInput.onchange = (e) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        const img = new Image();
+                        img.onload = () => {
+                            const canvas = document.getElementById('crop-canvas');
+                            canvas.width = img.width;
+                            canvas.height = img.height;
+                            const ctx = canvas.getContext('2d');
+                            ctx.drawImage(img, 0, 0);
+                            canvas.style.display = 'block';
+                            state.isCaptured = true;
+                            document.getElementById('btn-capture').classList.add('hidden');
+                            document.getElementById('btn-retake').classList.remove('hidden');
+                            
+                            if (state.currentField === 'auto-all') {
+                                processAutoDetection(canvas);
+                            } else if (state.currentField === 'serial') {
+                                processSerialDetection(canvas);
+                            } else if (state.currentField === 'product_extra') {
+                                addExtraImage(canvas);
+                            }
+                        };
+                        img.src = event.target.result;
+                    };
+                    reader.readAsDataURL(file);
+                };
+            }
         }
 
         async function openScanner(field) {
@@ -245,9 +309,14 @@
         }
 
         function closeScanner() {
-            if(state.scanner) state.scanner.stop();
+            // Đóng giao diện ngay lập tức để người dùng thấy phản hồi
             document.getElementById('scanner-modal').classList.remove('open');
             resetScannerUI();
+            
+            // Dừng camera ở chế độ chạy ngầm
+            if(state.scanner) {
+                state.scanner.stop().catch(e => console.warn("Scanner stop error:", e));
+            }
         }
 
         function resetScannerUI() {
@@ -268,7 +337,15 @@
             state.isCaptured = true;
             document.getElementById('btn-capture').classList.add('hidden');
             document.getElementById('btn-retake').classList.remove('hidden');
-            if(state.currentField === 'serial') state.capturedImage = canvas.toDataURL('image/jpeg');
+            if(state.currentField === 'serial') {
+                processSerialDetection(canvas);
+            }
+            if(state.currentField === 'product_extra') {
+                addExtraImage(canvas);
+            }
+            if(state.currentField === 'auto-all') {
+                processAutoDetection(canvas);
+            }
         };
 
         document.getElementById('btn-retake').onclick = resetScannerUI;
@@ -371,6 +448,10 @@
                 // Nếu là quét Seri, lưu ảnh sản phẩm ĐÃ NÉN
                 if (state.currentField === 'serial') {
                     state.capturedImage = compressImage(cropCanvas);
+                    updateImagePreviews();
+                }
+                if (state.currentField === 'product_extra') {
+                    addExtraImage(cropCanvas);
                 }
                 
                 document.getElementById('verify-input').value = (state.currentField === 'phone') ? text.replace(/[^0-9]/g, '') : text;
@@ -379,14 +460,157 @@
             document.getElementById('loading').style.display = 'none';
         }
 
+        async function processAutoDetection(canvas) {
+            document.getElementById('loading').style.display = 'flex';
+            document.getElementById('loading-text').innerText = "Đang phân tích phiếu...";
+            
+            try {
+                // Resize canvas để OCR nhanh hơn và ổn định hơn
+                const resizedCanvas = document.createElement('canvas');
+                const maxDim = 1200;
+                let w = canvas.width;
+                let h = canvas.height;
+                if (w > h && w > maxDim) { h *= maxDim / w; w = maxDim; }
+                else if (h > maxDim) { w *= maxDim / h; h = maxDim; }
+                resizedCanvas.width = w; resizedCanvas.height = h;
+                resizedCanvas.getContext('2d').drawImage(canvas, 0, 0, w, h);
+
+                const res = await Tesseract.recognize(resizedCanvas, 'vie+eng', {
+                    logger: m => {
+                        if (m.status === 'recognizing text') {
+                            document.getElementById('loading-text').innerText = `Đang nhận diện: ${Math.round(m.progress * 100)}%`;
+                        }
+                    }
+                });
+                
+                if (!res || !res.data) {
+                    throw new Error("Không nhận được dữ liệu từ trình nhận diện.");
+                }
+
+                const text = res.data.text;
+                console.log("OCR Result:", text);
+                const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+                
+                let result = {
+                    waybill: "", sender: "", phone: "", address: ""
+                };
+
+                // 1. Tìm SĐT (Regex VN)
+                const phoneMatch = text.match(/(0[3|5|7|8|9][0-9]{8})/);
+                if (phoneMatch) result.phone = phoneMatch[0];
+
+                // 2. Tìm Mã vận đơn (10-15 ký tự in hoa/số)
+                const waybillMatch = text.match(/[A-Z0-9]{10,18}/);
+                if (waybillMatch) result.waybill = waybillMatch[0];
+
+                // 3. Heuristic
+                lines.forEach((line, index) => {
+                    const l = line.toLowerCase();
+                    if (l.includes("người nhận") || l.includes("khách hàng") || l.includes("tên")) {
+                        result.sender = line.split(/[:\-]/).pop().trim();
+                    }
+                    if (l.includes("địa chỉ") || l.includes("đ/c")) {
+                        result.address = line.split(/[:\-]/).pop().trim();
+                        if (lines[index+1] && lines[index+1].length > 10 && !lines[index+1].includes(":")) {
+                            result.address += " " + lines[index+1];
+                        }
+                    }
+                });
+
+                document.getElementById('in-waybill').value = result.waybill || "";
+                document.getElementById('in-sender').value = result.sender || "";
+                document.getElementById('in-phone').value = result.phone || "";
+                document.getElementById('in-address').value = result.address || "";
+
+                alert("Đã tự động nhận diện xong!");
+                closeScanner();
+            } catch (e) {
+                console.error("OCR Error Detail:", e);
+                alert("Lỗi khi tự động nhận diện: " + (e.message || "Lỗi không xác định"));
+            }
+            document.getElementById('loading').style.display = 'none';
+        }
+
+        async function processSerialDetection(canvas) {
+            document.getElementById('loading').style.display = 'flex';
+            document.getElementById('loading-text').innerText = "Đang tìm số Seri...";
+            try {
+                let text = "";
+                try {
+                    const result = await state.scanner.scanImage(canvas, false);
+                    if (result) text = result;
+                } catch(e) {}
+
+                if (!text) {
+                    const res = await Tesseract.recognize(canvas, 'eng');
+                    if (res && res.data) {
+                        const fullText = res.data.text.trim();
+                        const serialMatch = fullText.match(/[A-Z0-9]{6,25}/);
+                        text = serialMatch ? serialMatch[0] : fullText.split('\n')[0];
+                    }
+                }
+
+                document.getElementById('in-serial').value = text;
+                state.capturedImage = compressImage(canvas);
+                updateImagePreviews();
+                
+                if (text && text.length > 2) {
+                    alert("Đã nhận diện Seri: " + text);
+                    closeScanner();
+                } else {
+                    alert("Không tìm thấy Seri rõ ràng. Hãy khoanh vùng thủ công hoặc nhập tay.");
+                    document.getElementById('verify-input').value = text || "";
+                    document.getElementById('verify-box').classList.add('show');
+                }
+            } catch (e) { 
+                console.error("Serial OCR Error Detail:", e); 
+                alert("Lỗi khi nhận diện Seri: " + (e.message || e || "Lỗi không xác định")); 
+            }
+            document.getElementById('loading').style.display = 'none';
+        }
+
+        function addExtraImage(canvas) {
+            const imgData = compressImage(canvas);
+            state.productImages.push(imgData);
+            updateImagePreviews();
+            closeScanner();
+        }
+
+        function updateImagePreviews() {
+            const container = document.getElementById('images-container');
+            // Xóa hết cũ trừ cái đầu tiên (nếu có)
+            container.innerHTML = '';
+            
+            if (state.capturedImage) {
+                const img = document.createElement('img');
+                img.src = state.capturedImage;
+                img.style.cssText = "height: 100px; border-radius: 8px; border: 1px solid var(--primary); flex-shrink: 0;";
+                container.appendChild(img);
+            }
+
+            state.productImages.forEach(src => {
+                const img = document.createElement('img');
+                img.src = src;
+                img.style.cssText = "height: 100px; border-radius: 8px; border: 1px solid #22c55e; flex-shrink: 0;";
+                container.appendChild(img);
+            });
+
+            if (state.capturedImage || state.productImages.length > 0) {
+                document.getElementById('serial-preview-box').classList.remove('hidden');
+            }
+        }
+
         function compressImage(originalCanvas) {
-            const targetWidth = 800;
+            const targetWidth = 1024;
             const scaleFactor = targetWidth / originalCanvas.width;
             const temp = document.createElement('canvas');
             temp.width = targetWidth;
             temp.height = originalCanvas.height * scaleFactor;
-            temp.getContext('2d').drawImage(originalCanvas, 0, 0, temp.width, temp.height);
-            return temp.toDataURL('image/jpeg', 0.6); // Nén chất lượng xuống 60% để tiết kiệm bộ nhớ
+            const ctx = temp.getContext('2d');
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            ctx.drawImage(originalCanvas, 0, 0, temp.width, temp.height);
+            return temp.toDataURL('image/jpeg', 0.8); 
         }
 
         document.getElementById('btn-confirm-ok').onclick = () => {
@@ -418,20 +642,33 @@
                 phone: document.getElementById('in-phone').value,
                 address: document.getElementById('in-address').value,
                 serial: serial,
-                image: state.capturedImage
+                images: [state.capturedImage, ...state.productImages].filter(img => img !== null)
             };
             
             try {
                 state.scannedData.push(data);
                 localStorage.setItem('scannedData', JSON.stringify(state.scannedData));
                 document.getElementById('in-serial').value = '';
-                // Giữ lại ảnh của đơn cũ để an toàn, reset cho đơn sau
+                state.capturedImage = null;
+                state.productImages = [];
+                updateImagePreviews();
                 renderTable();
                 alert("✅ ĐÃ LƯU THÀNH CÔNG!");
             } catch (e) {
                 console.error(e);
                 alert("❌ LỖI BỘ NHỚ: Không thể lưu thêm do bộ nhớ trình duyệt đầy. Vui lòng xuất file và Xóa dữ liệu cũ để tiếp tục.");
-                state.scannedData.pop(); // Xóa mục vừa thêm bị lỗi
+                state.scannedData.pop();
+            }
+        }
+
+        function goBackToStep1() {
+            document.getElementById('step-2-ui').classList.add('hidden');
+            document.getElementById('step-1-ui').classList.remove('hidden');
+        }
+
+        function goToHome() {
+            if(confirm("Bạn muốn quay về màn hình Đăng nhập?")) {
+                location.reload();
             }
         }
 
@@ -440,41 +677,115 @@
             document.getElementById('in-sender').value = '';
             document.getElementById('in-phone').value = '';
             document.getElementById('in-address').value = '';
+            document.getElementById('serial-preview-box').classList.add('hidden');
             document.getElementById('step-2-ui').classList.add('hidden');
             document.getElementById('step-1-ui').classList.remove('hidden');
         }
 
         function renderTable() {
             const body = document.querySelector('#log-table tbody');
-            body.innerHTML = state.scannedData.slice().reverse().map(item => `
-                <tr>
-                    <td>${item.waybill}</td>
-                    <td>${item.serial}</td>
-                    <td><img src="${item.image||''}" style="width:30px;height:30px;object-fit:cover;border-radius:4px;"></td>
-                </tr>
-            `).join('');
+            body.innerHTML = state.scannedData.slice().reverse().map(item => {
+                const images = item.images || (item.image ? [item.image] : []);
+                let imgHtml = '';
+                images.forEach(img => {
+                    imgHtml += `<img src="${img}" style="width:30px;height:30px;object-fit:cover;border-radius:4px;margin-right:2px;">`;
+                });
+                return `
+                    <tr>
+                        <td>${item.waybill}</td>
+                        <td>${item.serial}</td>
+                        <td>${imgHtml}</td>
+                    </tr>
+                `;
+            }).join('');
             document.getElementById('total-count').innerText = state.scannedData.length;
         }
 
-        document.getElementById('btn-export-xlsx').onclick = () => {
+        document.getElementById('btn-export-xlsx').onclick = async () => {
             if(state.scannedData.length === 0) return alert("Chưa có dữ liệu!");
             
-            const exportData = state.scannedData.map((item, index) => ({
-                "STT": index + 1,
-                "Ngày": item.date,
-                "Mã vận đơn": item.waybill,
-                "Người gửi": item.sender,
-                "Địa chỉ": item.address,
-                "Số điện thoại": item.phone,
-                "Seri sản phẩm": item.serial,
-                "Hình ảnh": "Có (xem trong ứng dụng)"
-            }));
+            document.getElementById('loading').style.display = 'flex';
+            document.getElementById('loading-text').innerText = "Đang tạo file Excel...";
 
-            const ws = XLSX.utils.json_to_sheet(exportData);
-            const wb = XLSX.utils.book_new(); 
-            XLSX.utils.book_append_sheet(wb, ws, "BaoCaoQuet");
-            XLSX.writeFile(wb, "Bao_Cao_Quet_SmartScanner.xlsx");
+            const workbook = new ExcelJS.Workbook();
+            const worksheet = workbook.addWorksheet('BaoCaoQuet');
+
+            // Tìm số lượng ảnh lớn nhất của 1 hàng để tạo đủ cột
+            let maxImages = 1;
+            state.scannedData.forEach(item => {
+                const count = (item.images ? item.images.length : (item.image ? 1 : 0));
+                if (count > maxImages) maxImages = count;
+            });
+
+            // Thiết lập tiêu đề cột
+            let columns = [
+                { header: 'STT', key: 'stt', width: 5 },
+                { header: 'Ngày', key: 'date', width: 15 },
+                { header: 'Mã vận đơn', key: 'waybill', width: 20 },
+                { header: 'Người gửi', key: 'sender', width: 20 },
+                { header: 'Địa chỉ', key: 'address', width: 30 },
+                { header: 'Số điện thoại', key: 'phone', width: 15 },
+                { header: 'Seri sản phẩm', key: 'serial', width: 20 }
+            ];
+
+            // Thêm các cột ảnh động
+            for (let i = 1; i <= maxImages; i++) {
+                columns.push({ header: `Ảnh ${i}`, key: `img_${i}`, width: 15 });
+            }
+            worksheet.columns = columns;
+
+            // Định dạng header
+            worksheet.getRow(1).font = { bold: true };
+            worksheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
+
+            for (let i = 0; i < state.scannedData.length; i++) {
+                const item = state.scannedData[i];
+                const rowIndex = i + 2;
+                const rowData = {
+                    stt: i + 1,
+                    date: item.date,
+                    waybill: item.waybill,
+                    sender: item.sender,
+                    address: item.address,
+                    phone: item.phone,
+                    serial: item.serial
+                };
+                const row = worksheet.addRow(rowData);
+                row.height = 80;
+
+                const images = item.images || (item.image ? [item.image] : []);
+                images.forEach((imgBase64, imgIdx) => {
+                    try {
+                        const imageId = workbook.addImage({
+                            base64: imgBase64,
+                            extension: 'jpeg',
+                        });
+                        worksheet.addImage(imageId, {
+                            tl: { col: 7 + imgIdx + 0.1, row: rowIndex - 0.9 }, 
+                            ext: { width: 100, height: 80 }
+                        });
+                    } catch (e) { console.error(e); }
+                });
+                
+                row.alignment = { vertical: 'middle', horizontal: 'left' };
+            }
+
+            worksheet.headerFooter.oddFooter = "Phát triển bởi: Trần Đình Nhỡ. Đ.t: 0944 32 68 25. Nghiêm cấm in sao dưới mọi hình thức nếu chưa có sự đồng ý của tác giả.";
+
+            const buffer = await workbook.xlsx.writeBuffer();
+            const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+            saveAs(blob, `Bao_Cao_Quet_Full_${new Date().getTime()}.xlsx`);
+            document.getElementById('loading').style.display = 'none';
         };
+
+        // Hàm saveAs giả lập nếu chưa có FileSaver.js
+        function saveAs(blob, filename) {
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+        }
 
         document.getElementById('btn-export-pdf').onclick = () => {
             if(state.scannedData.length === 0) return alert("Chưa có dữ liệu!");
@@ -499,15 +810,27 @@
 
             // Thêm trang ảnh
             state.scannedData.forEach((i, idx) => {
-                if(i.image) {
+                const images = i.images || (i.image ? [i.image] : []);
+                images.forEach((img, imgIdx) => {
                     doc.addPage();
                     doc.setFontSize(12);
-                    doc.text(`ANH SAN PHAM - STT: ${idx+1} - Ma VD: ${i.waybill}`, 10, 10);
-                    doc.addImage(i.image, 'JPEG', 10, 20, 180, 135);
-                }
+                    doc.text(`ANH SAN PHAM - STT: ${idx+1} - Ma VD: ${i.waybill} - Anh ${imgIdx+1}`, 10, 10);
+                    doc.addImage(img, 'JPEG', 10, 20, 180, 135);
+                });
             });
+
+            // Thêm Watermark cho tất cả các trang
+            const totalPages = doc.internal.getNumberOfPages();
+            for (let j = 1; j <= totalPages; j++) {
+                doc.setPage(j);
+                doc.setFontSize(30);
+                doc.setTextColor(200, 200, 200); // Màu xám rất nhạt
+                doc.text("PHAT TRIEN BOI: TRAN DINH NHO - 0944 32 68 25", 30, 180, { angle: 45 });
+                doc.setFontSize(10);
+                doc.text("Nghiem cam in sao duoi moi hinh thuc neu chua co su dong y cua tac gia", 50, 195, { angle: 45 });
+            }
             
-            doc.save("Bao_Cao_Quet_TranDinhNho.pdf");
+            doc.save("Bao_Cao_Quet_Full_Watermark.pdf");
         };
 
         document.getElementById('btn-clear').onclick = () => {
@@ -515,9 +838,15 @@
         };
 
         function getFieldName(f) {
-            const map = {'waybill':'Mã vận đơn', 'sender':'Người gửi', 'phone':'Số điện thoại', 'address':'Địa chỉ', 'serial':'Mã Seri'};
+            const map = {
+                'waybill':'Mã vận đơn', 'sender':'Người gửi', 
+                'phone':'Số điện thoại', 'address':'Địa chỉ', 
+                'serial':'Mã Seri', 'auto-all': 'Toàn bộ phiếu',
+                'product_extra': 'Ảnh toàn cảnh sản phẩm'
+            };
             return map[f] || f;
         }
+        initUploadLogic();
     </script>
 </body>
 </html>
