@@ -342,21 +342,18 @@
             temp.width = w; temp.height = h;
             const ctx = temp.getContext('2d');
             
-            // Tiền xử lý ảnh để nhận dạng tốt hơn (Tăng tương phản)
             ctx.filter = 'grayscale(1) contrast(1.5) brightness(1.2)';
             ctx.drawImage(cropCanvas, x, y, w, h, 0, 0, w, h);
             
             try {
                 let text = "";
-                // Ưu tiên quét mã vạch/QR cho Mã vận đơn và Seri
                 if(state.currentField === 'waybill' || state.currentField === 'serial') {
                     try { 
                         const result = await state.scanner.scanImage(temp, false);
                         if(result) text = result;
-                    } catch(e) { console.log("Không tìm thấy mã vạch, chuyển sang OCR..."); }
+                    } catch(e) {}
                 }
 
-                // Nếu không quét được mã vạch hoặc là các trường văn bản khác
                 if(!text) {
                     const worker = await Tesseract.createWorker('vie+eng');
                     const res = await worker.recognize(temp.toDataURL());
@@ -364,20 +361,32 @@
                     await worker.terminate();
                 }
                 
-                // Nếu vẫn không có chữ hoặc chữ quá ngắn/vô nghĩa
                 if(!text || text.length < 2) {
                     text = "Không nhận dạng được";
                     document.getElementById('btn-confirm-ok').classList.add('hidden');
                 } else {
                     document.getElementById('btn-confirm-ok').classList.remove('hidden');
                 }
+
+                // Nếu là quét Seri, lưu ảnh sản phẩm ĐÃ NÉN
+                if (state.currentField === 'serial') {
+                    state.capturedImage = compressImage(cropCanvas);
+                }
                 
                 document.getElementById('verify-input').value = (state.currentField === 'phone') ? text.replace(/[^0-9]/g, '') : text;
                 document.getElementById('verify-box').classList.add('show');
-            } catch(e) { 
-                alert("Lỗi hệ thống khi nhận diện!"); 
-            }
+            } catch(e) { alert("Lỗi nhận diện!"); }
             document.getElementById('loading').style.display = 'none';
+        }
+
+        function compressImage(originalCanvas) {
+            const targetWidth = 800;
+            const scaleFactor = targetWidth / originalCanvas.width;
+            const temp = document.createElement('canvas');
+            temp.width = targetWidth;
+            temp.height = originalCanvas.height * scaleFactor;
+            temp.getContext('2d').drawImage(originalCanvas, 0, 0, temp.width, temp.height);
+            return temp.toDataURL('image/jpeg', 0.6); // Nén chất lượng xuống 60% để tiết kiệm bộ nhớ
         }
 
         document.getElementById('btn-confirm-ok').onclick = () => {
@@ -398,21 +407,32 @@
         };
 
         function saveProduct() {
+            const waybill = document.getElementById('in-waybill').value;
+            const serial = document.getElementById('in-serial').value;
+            if(!waybill || !serial) return alert("Vui lòng điền đủ Mã vận đơn và Seri!");
+
             const data = {
                 date: new Date().toLocaleDateString('vi-VN'),
-                waybill: document.getElementById('in-waybill').value,
+                waybill: waybill,
                 sender: document.getElementById('in-sender').value,
                 phone: document.getElementById('in-phone').value,
                 address: document.getElementById('in-address').value,
-                serial: document.getElementById('in-serial').value,
+                serial: serial,
                 image: state.capturedImage
             };
-            state.scannedData.push(data);
-            localStorage.setItem('scannedData', JSON.stringify(state.scannedData));
-            document.getElementById('in-serial').value = '';
-            state.capturedImage = null;
-            renderTable();
-            alert("Đã lưu sản phẩm!");
+            
+            try {
+                state.scannedData.push(data);
+                localStorage.setItem('scannedData', JSON.stringify(state.scannedData));
+                document.getElementById('in-serial').value = '';
+                // Giữ lại ảnh của đơn cũ để an toàn, reset cho đơn sau
+                renderTable();
+                alert("✅ ĐÃ LƯU THÀNH CÔNG!");
+            } catch (e) {
+                console.error(e);
+                alert("❌ LỖI BỘ NHỚ: Không thể lưu thêm do bộ nhớ trình duyệt đầy. Vui lòng xuất file và Xóa dữ liệu cũ để tiếp tục.");
+                state.scannedData.pop(); // Xóa mục vừa thêm bị lỗi
+            }
         }
 
         function finishWaybill() {
