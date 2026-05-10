@@ -762,16 +762,21 @@
 
                 const images = item.images || (item.image ? [item.image] : []);
                 images.forEach((imgBase64, imgIdx) => {
-                    try {
-                        const imageId = workbook.addImage({
-                            base64: imgBase64,
-                            extension: 'jpeg',
-                        });
-                        worksheet.addImage(imageId, {
-                            tl: { col: 7 + imgIdx + 0.1, row: rowIndex - 0.9 }, 
-                            ext: { width: 100, height: 80 }
-                        });
-                    } catch (e) { console.error(e); }
+                    if (imgBase64 && imgBase64.length > 10 && imgBase64 !== 'data:,') {
+                        try {
+                            // ExcelJS addImage works best with raw base64 (no prefix)
+                            const base64Data = imgBase64.includes(',') ? imgBase64.split(',')[1] : imgBase64;
+                            const imageId = workbook.addImage({
+                                base64: base64Data,
+                                extension: 'jpeg',
+                            });
+                            worksheet.addImage(imageId, {
+                                tl: { col: 7 + imgIdx + 0.05, row: rowIndex - 0.95 }, 
+                                ext: { width: 100, height: 80 },
+                                editAs: 'oneCell' // Giữ ảnh trong ô tốt hơn trên mobile
+                            });
+                        } catch (e) { console.error("Excel Image Error:", e); }
+                    }
                 });
                 
                 row.alignment = { vertical: 'middle', horizontal: 'left' };
@@ -802,47 +807,114 @@
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF('l', 'mm', 'a4'); // Khổ ngang cho đủ cột
             
-            doc.setFontSize(10); doc.setTextColor(100);
-            doc.text("Tac gia: K.s Tran Dinh Nho - DT: 0944 32 68 25", 10, 200);
-            
-            doc.setFontSize(18); doc.setTextColor(0);
-            doc.text("BAO CAO QUET MA VAN DON & SAN PHAM", 10, 15);
-            
-            const head = [['STT', 'Ngay', 'Ma VD', 'Nguoi gui', 'Dia chi', 'SDT', 'Seri']];
-            const body = state.scannedData.map((i, idx) => [idx+1, i.date, i.waybill, i.sender, i.address, i.phone, i.serial]);
+            // Tính số lượng ảnh lớn nhất để tạo cột
+            let maxImages = 1;
+            state.scannedData.forEach(item => {
+                const count = (item.images ? item.images.length : (item.image ? 1 : 0));
+                if (count > maxImages) maxImages = count;
+            });
+
+            // Tiêu đề cột giống Excel (không dấu để tránh lỗi font PDF mặc định)
+            const head = [['STT', 'Ngay', 'Ma van don', 'Nguoi gui', 'Dia chi', 'So dien thoai', 'Seri san pham']];
+            for (let i = 1; i <= maxImages; i++) {
+                head[0].push(`Anh ${i}`);
+            }
+
+            // Dữ liệu bảng
+            const body = state.scannedData.map((item, idx) => {
+                const row = [
+                    idx + 1, 
+                    item.date, 
+                    item.waybill, 
+                    item.sender, 
+                    item.address, 
+                    item.phone, 
+                    item.serial
+                ];
+                // Thêm ô trống cho các cột ảnh
+                for (let i = 0; i < maxImages; i++) {
+                    row.push('');
+                }
+                return row;
+            });
+
+            doc.setFontSize(18);
+            doc.text("BAO CAO QUET MA VAN DON & SAN PHAM", 14, 15);
             
             doc.autoTable({
                 head: head,
                 body: body,
                 startY: 25,
-                styles: { fontSize: 8 }
+                theme: 'grid',
+                styles: { 
+                    fontSize: 7, 
+                    cellPadding: 1, 
+                    verticalAlign: 'middle',
+                    overflow: 'linebreak'
+                },
+                headStyles: { 
+                    fillColor: [99, 102, 241], 
+                    textColor: 255, 
+                    halign: 'center',
+                    fontStyle: 'bold'
+                },
+                columnStyles: {
+                    0: { cellWidth: 8 },  // STT
+                    1: { cellWidth: 18 }, // Ngay
+                    2: { cellWidth: 25 }, // Ma VD
+                    3: { cellWidth: 25 }, // Nguoi gui
+                    4: { cellWidth: 40 }, // Dia chi
+                    5: { cellWidth: 20 }, // SDT
+                    6: { cellWidth: 25 }, // Seri
+                },
+                // Vẽ ảnh vào các cột tương ứng
+                didDrawCell: (data) => {
+                    if (data.section === 'body' && data.column.index >= 7) {
+                        const rowIndex = data.row.index;
+                        const item = state.scannedData[rowIndex];
+                        const images = item.images || (item.image ? [item.image] : []);
+                        const imgIdx = data.column.index - 7;
+                        
+                        if (images[imgIdx] && images[imgIdx].length > 10 && images[imgIdx] !== 'data:,') {
+                            try {
+                                const imgData = images[imgIdx];
+                                // Tính toán kích thước ảnh để vừa trong ô
+                                const padding = 1;
+                                const imgW = data.cell.width - (padding * 2);
+                                const imgH = data.cell.height - (padding * 2);
+                                // jsPDF addImage tự nhận diện DataURL hoặc base64
+                                doc.addImage(imgData, 'JPEG', data.cell.x + padding, data.cell.y + padding, imgW, imgH, undefined, 'FAST');
+                            } catch (e) {
+                                console.error("Error adding image to PDF cell:", e);
+                            }
+                        }
+                    }
+                },
+                bodyStyles: { minCellHeight: 15 }, // Đủ cao để xem ảnh
+                margin: { top: 25, bottom: 20 }
             });
 
-            // Thêm trang ảnh
-            state.scannedData.forEach((i, idx) => {
-                const images = i.images || (i.image ? [i.image] : []);
-                images.forEach((img, imgIdx) => {
-                    doc.addPage();
-                    doc.setFontSize(12);
-                    doc.text(`ANH SAN PHAM - STT: ${idx+1} - Ma VD: ${i.waybill} - Anh ${imgIdx+1}`, 10, 10);
-                    doc.addImage(img, 'JPEG', 10, 20, 180, 135);
-                });
-            });
-
-            // Thêm Watermark cho tất cả các trang
+            // Thêm Watermark và Thông tin tác giả cho tất cả các trang
             const totalPages = doc.internal.getNumberOfPages();
             for (let j = 1; j <= totalPages; j++) {
                 doc.setPage(j);
-                doc.setFontSize(30);
-                doc.setTextColor(200, 200, 200); // Màu xám rất nhạt
-                doc.text("PHAT TRIEN BOI: TRAN DINH NHO - 0944 32 68 25", 30, 180, { angle: 45 });
-                doc.setFontSize(10);
-                doc.text("Nghiem cam in sao duoi moi hinh thuc neu chua co su dong y cua tac gia", 50, 195, { angle: 45 });
+                
+                // Footer text
+                doc.setFontSize(8);
+                doc.setTextColor(150);
+                doc.text("Tac gia: K.s Tran Dinh Nho - DT: 0944 32 68 25", 14, doc.internal.pageSize.height - 10);
+                doc.text("Trang " + j + " / " + totalPages, doc.internal.pageSize.width - 25, doc.internal.pageSize.height - 10);
+
+                // Watermark chéo
+                doc.saveGraphicsState();
+                doc.setGState(new doc.GState({opacity: 0.1}));
+                doc.setFontSize(35);
+                doc.setTextColor(200);
+                doc.text("TRAN DINH NHO - 0944 32 68 25", 40, 150, { angle: 35 });
+                doc.restoreGraphicsState();
             }
             
-            doc.save("Bao_Cao_Quet_Full_Watermark.pdf");
-            
-            // Nhắc dọn dẹp bộ nhớ
+            doc.save(`Bao_Cao_Quet_Full_${new Date().getTime()}.pdf`);
             setTimeout(promptClearMemory, 1000);
         };
 
