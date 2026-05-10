@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Scanner App - Mã Vận Đơn & Sản Phẩm</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html5-qrcode/html5-qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.5.25/dist/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header>
+            <div class="logo">
+                <i data-lucide="scan-line"></i>
+                <h1>Smart Scanner</h1>
+            </div>
+            <div class="actions">
+                <button id="btn-export-xlsx" title="Xuất Excel"><i data-lucide="file-spreadsheet"></i></button>
+                <button id="btn-export-pdf" title="Xuất PDF"><i data-lucide="file-text"></i></button>
+                <button id="btn-clear-all" title="Xóa dữ liệu"><i data-lucide="trash-2"></i></button>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main>
+            <!-- Camera Viewport -->
+            <section id="scanner-section" class="active">
+                <div class="viewport-container">
+                    <div id="reader"></div>
+                    <canvas id="crop-canvas"></canvas>
+                    <div id="selection-overlay"></div>
+                    
+                    <div class="scanner-controls">
+                        <button id="btn-capture" class="btn-primary">
+                            <i data-lucide="camera"></i>
+                            <span>Chụp phiếu</span>
+                        </button>
+                        <button id="btn-retake" class="btn-secondary hidden">
+                            <i data-lucide="refresh-cw"></i>
+                            <span>Chụp lại</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div id="ocr-toolbar" class="hidden">
+                    <p class="instruction">Chọn thông tin cần lấy sau đó khoanh vùng trên ảnh</p>
+                    <div class="ocr-buttons">
+                        <button class="ocr-btn" data-field="waybill">Mã vận đơn</button>
+                        <button class="ocr-btn" data-field="sender">Người gửi</button>
+                        <button class="ocr-btn" data-field="phone">Số điện thoại</button>
+                        <button class="ocr-btn" data-field="address">Địa chỉ</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Form Data Review -->
+            <section id="form-section">
+                <div class="card">
+                    <h3>Thông tin vận đơn</h3>
+                    <div class="field-group">
+                        <label>Mã vận đơn</label>
+                        <input type="text" id="input-waybill" placeholder="Quét hoặc nhập...">
+                    </div>
+                    <div class="field-group">
+                        <label>Người gửi</label>
+                        <input type="text" id="input-sender" placeholder="...">
+                    </div>
+                    <div class="field-group">
+                        <label>Số điện thoại</label>
+                        <input type="text" id="input-phone" placeholder="...">
+                    </div>
+                    <div class="field-group">
+                        <label>Địa chỉ</label>
+                        <input type="text" id="input-address" placeholder="...">
+                    </div>
+                </div>
+
+                <div class="card product-card">
+                    <h3>Sản phẩm đi kèm</h3>
+                    <div class="viewport-container small">
+                        <canvas id="product-canvas"></canvas>
+                        <div class="scanner-controls">
+                            <button id="btn-capture-product" class="btn-primary">
+                                <i data-lucide="package"></i>
+                                <span>Chụp sản phẩm & Seri</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="product-ocr-toolbar" class="hidden">
+                        <button class="ocr-btn" data-field="serial">Khoanh vùng Seri</button>
+                    </div>
+                    <div class="field-group">
+                        <label>Seri sản phẩm</label>
+                        <input type="text" id="input-serial" placeholder="...">
+                    </div>
+                    <div id="product-preview" class="hidden">
+                        <img id="img-product-preview" src="">
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button id="btn-save-product" class="btn-success">
+                        <i data-lucide="plus-circle"></i>
+                        <span>Lưu & Quét tiếp sản phẩm</span>
+                    </button>
+                    <button id="btn-finish-waybill" class="btn-primary">
+                        <i data-lucide="check-check"></i>
+                        <span>Hoàn tất & Sang mã khác</span>
+                    </button>
+                </div>
+            </section>
+
+            <!-- Data Table (Summary) -->
+            <section id="data-section">
+                <div class="table-header">
+                    <h2>Dữ liệu đã quét (<span id="scan-count">0</span>)</h2>
+                </div>
+                <div class="table-container">
+                    <table id="data-table">
+                        <thead>
+                            <tr>
+                                <th>Ngày nhận</th>
+                                <th>Mã vận đơn</th>
+                                <th>Người gửi</th>
+                                <th>SĐT</th>
+                                <th>Địa chỉ</th>
+                                <th>Seri</th>
+                                <th>Ảnh</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Rows injected here -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+
+        <!-- Loading Overlay -->
+        <div id="loading" class="hidden">
+            <div class="spinner"></div>
+            <p id="loading-text">Đang xử lý...</p>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+</html>

@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Smart Scanner All-in-One</title>
+    <!-- Libraries from CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html5-qrcode/html5-qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.5.25/dist/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <style id="dynamic-styles">
+        :root {
+            --primary: #6366f1;
+            --primary-hover: #4f46e5;
+            --secondary: #64748b;
+            --success: #22c55e;
+            --danger: #ef4444;
+            --bg-dark: #0f172a;
+            --card-bg: #1e293b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --radius: 12px;
+            --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+            --app-font: 'Inter', sans-serif;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: var(--app-font); }
+        body { background-color: var(--bg-dark); color: var(--text-main); line-height: 1.5; overflow-x: hidden; }
+        #app { display: flex; flex-direction: column; min-height: 100vh; max-width: 500px; margin: 0 auto; }
+        header { padding: 1rem; background: rgba(30, 41, 59, 0.95); backdrop-filter: blur(10px); display: flex; flex-direction: column; gap: 0.5rem; position: sticky; top: 0; z-index: 100; border-bottom: 1px solid rgba(99, 102, 241, 0.3); }
+        .header-top { display: flex; justify-content: space-between; align-items: center; width: 100%; }
+        .logo h1 { font-size: 1.3rem; font-weight: 800; background: linear-gradient(to right, #818cf8, #c084fc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .author-main-info { background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.2); border-radius: 8px; padding: 0.5rem 0.75rem; width: 100%; display: flex; flex-direction: column; gap: 0.1rem; }
+        .author-name { color: #818cf8; font-weight: 700; font-size: 0.9rem; }
+        .author-details { color: var(--text-muted); font-size: 0.7rem; display: flex; justify-content: space-between; flex-wrap: wrap; }
+        .actions { display: flex; gap: 0.5rem; }
+        .actions button { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); color: var(--text-main); padding: 0.5rem; border-radius: 8px; cursor: pointer; }
+        main { flex: 1; padding: 1rem; display: flex; flex-direction: column; gap: 1.5rem; }
+        .viewport-container { position: relative; width: 100%; aspect-ratio: 4/3; background: #000; border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); border: 2px solid rgba(99, 102, 241, 0.3); }
+        #reader, #crop-canvas, #product-canvas { width: 100%; height: 100%; object-fit: cover; }
+        #crop-canvas, #product-canvas { position: absolute; top: 0; left: 0; display: none; }
+        #selection-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
+        .selection-box { position: absolute; border: 2px solid var(--primary); background: rgba(99, 102, 241, 0.2); box-shadow: 0 0 10px var(--primary); pointer-events: none; }
+        .scanner-controls { position: absolute; bottom: 1rem; left: 0; right: 0; display: flex; justify-content: center; gap: 0.5rem; z-index: 20; }
+        .btn-primary, .btn-secondary, .btn-success { display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem 1rem; border-radius: 50px; border: none; font-weight: 600; cursor: pointer; color: white; }
+        .btn-primary { background: var(--primary); }
+        .btn-secondary { background: var(--secondary); }
+        .btn-success { background: var(--success); }
+        #ocr-toolbar { margin-top: 1rem; padding: 1rem; background: var(--card-bg); border-radius: var(--radius); }
+        .ocr-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+        .ocr-btn { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); color: var(--text-main); padding: 0.6rem; border-radius: 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer; }
+        .ocr-btn.active { background: var(--primary); border-color: var(--primary); }
+        .card { background: var(--card-bg); padding: 1.25rem; border-radius: var(--radius); border: 1px solid rgba(255, 255, 255, 0.1); display: flex; flex-direction: column; gap: 1rem; }
+        .field-group { display: flex; flex-direction: column; gap: 0.25rem; }
+        .field-group label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; }
+        .field-group input { background: rgba(15, 23, 42, 0.5); border: 1px solid rgba(255, 255, 255, 0.1); color: var(--text-main); padding: 0.75rem; border-radius: 8px; }
+        .table-container { overflow-x: auto; background: var(--card-bg); border-radius: var(--radius); border: 1px solid rgba(255, 255, 255, 0.1); }
+        table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+        th, td { padding: 0.6rem; text-align: left; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
+        .img-cell img { width: 40px; height: 40px; object-fit: cover; border-radius: 4px; }
+        
+        /* Login Screen */
+        #login-screen { position: fixed; inset: 0; background: var(--bg-dark); z-index: 2000; display: flex; align-items: center; justify-content: center; padding: 2rem; }
+        .login-card { background: var(--card-bg); padding: 2rem; border-radius: var(--radius); width: 100%; max-width: 350px; text-align: center; border: 1px solid rgba(255,255,255,0.1); }
+        .login-btn { width: 100%; padding: 0.75rem; border-radius: 8px; border: none; margin-top: 1rem; font-weight: 600; cursor: pointer; }
+        
+        /* Settings Panel */
+        #settings-panel { position: fixed; right: -300px; top: 0; width: 300px; height: 100%; background: var(--card-bg); z-index: 1500; transition: 0.3s; padding: 2rem; border-left: 1px solid rgba(255,255,255,0.1); box-shadow: -5px 0 15px rgba(0,0,0,0.5); }
+        #settings-panel.open { right: 0; }
+        .settings-group { margin-bottom: 1.5rem; }
+        .settings-group label { display: block; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem; }
+        
+        .hidden { display: none !important; }
+        #loading { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 1000; gap: 1rem; }
+        .spinner { width: 40px; height: 40px; border: 4px solid rgba(99, 102, 241, 0.2); border-top: 4px solid var(--primary); border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div id="login-screen">
+        <div class="login-card">
+            <h2 style="margin-bottom: 1rem;">Đăng nhập</h2>
+            <button class="login-btn btn-primary" onclick="login('guest')">Tiếp tục vai trò Khách</button>
+            <div style="margin: 1.5rem 0; color: var(--text-muted);">--- HOẶC ---</div>
+            <input type="password" id="admin-pass" placeholder="Mật khẩu Admin" style="width: 100%; padding: 0.75rem; border-radius: 8px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: white; margin-bottom: 0.5rem;">
+            <button class="login-btn btn-success" onclick="login('admin')">Đăng nhập Admin</button>
+        </div>
+    </div>
+
+    <div id="settings-panel">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+            <h3>Cài đặt Admin</h3>
+            <button onclick="toggleSettings()" style="background: none; border: none; color: white;"><i data-lucide="x"></i></button>
+        </div>
+        <div class="settings-group">
+            <label>Phông chữ ứng dụng</label>
+            <select id="setting-font" onchange="updateSettings()" style="width: 100%; padding: 0.5rem; background: #000; color: white; border: 1px solid #444;">
+                <option value="'Inter', sans-serif">Inter (Mặc định)</option>
+                <option value="'Roboto', sans-serif">Roboto</option>
+                <option value="'Segoe UI', sans-serif">Segoe UI</option>
+                <option value="'Courier New', monospace">Máy đánh chữ</option>
+            </select>
+        </div>
+        <div class="settings-group">
+            <label>Màu sắc chủ đạo</label>
+            <input type="color" id="setting-color" value="#6366f1" onchange="updateSettings()" style="width: 100%; height: 40px; border: none; background: none;">
+        </div>
+        <button class="btn-secondary" onclick="logout()" style="width: 100%; margin-top: 2rem;">Đăng xuất</button>
+    </div>
+
+    <div id="app" class="hidden">
+        <header>
+            <div class="header-top">
+                <div class="logo">
+                    <h1>Smart Scanner</h1>
+                </div>
+                <div class="actions">
+                    <button id="btn-settings" class="hidden" onclick="toggleSettings()"><i data-lucide="settings"></i></button>
+                    <button id="btn-export-xlsx" title="Excel"><i data-lucide="file-spreadsheet"></i></button>
+                    <button id="btn-export-pdf" title="PDF"><i data-lucide="file-text"></i></button>
+                    <button id="btn-clear-all" title="Xóa"><i data-lucide="trash-2"></i></button>
+                </div>
+            </div>
+            <div class="author-main-info">
+                <div class="author-name">K.s : Trần Đình Nhỡ</div>
+                <div class="author-details">
+                    <span><i data-lucide="phone" style="width:10px; height:10px; display:inline;"></i> 0944 32 68 25</span>
+                    <span><i data-lucide="map-pin" style="width:10px; height:10px; display:inline;"></i> Tiên Sơn - Ninh Bình</span>
+                </div>
+            </div>
+        </header>
+
+        <main>
+            <section id="scanner-section">
+                <div class="viewport-container" id="viewport-box">
+                    <div id="reader"></div>
+                    <canvas id="crop-canvas"></canvas>
+                    <canvas id="product-canvas"></canvas>
+                    <div id="selection-overlay"></div>
+                    
+                    <div class="scanner-controls">
+                        <button id="btn-capture" class="btn-primary"><i data-lucide="camera"></i> Chụp phiếu</button>
+                        <button id="btn-retake" class="btn-secondary hidden"><i data-lucide="refresh-cw"></i> Chụp lại</button>
+                        <button id="btn-capture-product" class="btn-success hidden"><i data-lucide="package"></i> Chụp SP</button>
+                    </div>
+                </div>
+
+                <div id="ocr-toolbar" class="hidden">
+                    <div class="ocr-buttons">
+                        <button class="ocr-btn" data-field="waybill">Mã vận đơn</button>
+                        <button class="ocr-btn" data-field="sender">Người gửi</button>
+                        <button class="ocr-btn" data-field="phone">Số điện thoại</button>
+                        <button class="ocr-btn" data-field="address">Địa chỉ</button>
+                        <button class="ocr-btn" data-field="serial">Seri SP</button>
+                    </div>
+                </div>
+            </section>
+
+            <section id="form-section">
+                <div class="card">
+                    <div class="field-group"><label>Mã vận đơn</label><input type="text" id="input-waybill"></div>
+                    <div class="field-group"><label>Người gửi</label><input type="text" id="input-sender"></div>
+                    <div class="field-group"><label>Số điện thoại</label><input type="text" id="input-phone"></div>
+                    <div class="field-group"><label>Địa chỉ</label><input type="text" id="input-address"></div>
+                    <div class="field-group"><label>Seri sản phẩm</label><input type="text" id="input-serial"></div>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                    <button id="btn-save-product" class="btn-success" style="width: 100%; justify-content: center;"><i data-lucide="plus-circle"></i> Lưu & Quét tiếp sản phẩm</button>
+                    <button id="btn-finish-waybill" class="btn-primary" style="width: 100%; justify-content: center;"><i data-lucide="check-check"></i> Hoàn tất & Sang mã khác</button>
+                </div>
+            </section>
+
+            <section id="data-section">
+                <p style="margin-bottom: 0.5rem; font-size: 0.9rem; color: var(--text-muted);">Dữ liệu đã quét: <span id="scan-count">0</span></p>
+                <div class="table-container">
+                    <table id="data-table">
+                        <thead><tr><th>Ngày</th><th>Mã VD</th><th>Người gửi</th><th>SĐT</th><th>Seri</th><th>Ảnh</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>© 2024 Smart Scanner - Giải pháp bởi Trần Đình Nhỡ</p>
+        </footer>
+
+        <div id="loading" class="hidden"><div class="spinner"></div><p id="loading-text">Đang xử lý...</p></div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+        
+        let state = {
+            role: 'guest',
+            scannedData: JSON.parse(localStorage.getItem('scannedData') || '[]'),
+            settings: JSON.parse(localStorage.getItem('appSettings') || '{"font":"\'Inter\', sans-serif", "color":"#6366f1"}'),
+            isCaptured: false,
+            selectedField: null,
+            startX: 0, startY: 0,
+            isDrawing: false,
+            capturedImage: null,
+            capturedProductImage: null
+        };
+
+        const elements = {
+            loginScreen: document.getElementById('login-screen'),
+            app: document.getElementById('app'),
+            settingsPanel: document.getElementById('settings-panel'),
+            btnSettings: document.getElementById('btn-settings'),
+            // ... rest keep as is
+            reader: document.getElementById('reader'),
+            cropCanvas: document.getElementById('crop-canvas'),
+            productCanvas: document.getElementById('product-canvas'),
+            selectionOverlay: document.getElementById('selection-overlay'),
+            btnCapture: document.getElementById('btn-capture'),
+            btnRetake: document.getElementById('btn-retake'),
+            btnCaptureProduct: document.getElementById('btn-capture-product'),
+            ocrToolbar: document.getElementById('ocr-toolbar'),
+            loading: document.getElementById('loading'),
+            loadingText: document.getElementById('loading-text'),
+            dataBody: document.querySelector('#data-table tbody'),
+            scanCount: document.getElementById('scan-count'),
+            inputWaybill: document.getElementById('input-waybill'),
+            inputSender: document.getElementById('input-sender'),
+            inputPhone: document.getElementById('input-phone'),
+            inputAddress: document.getElementById('input-address'),
+            inputSerial: document.getElementById('input-serial')
+        };
+
+        function login(role) {
+            if (role === 'admin') {
+                const pass = document.getElementById('admin-pass').value;
+                if (pass !== '1357924680') return alert("Sai mật khẩu Admin!");
+                state.role = 'admin';
+                elements.btnSettings.classList.remove('hidden');
+            } else {
+                state.role = 'guest';
+                elements.btnSettings.classList.add('hidden');
+            }
+            elements.loginScreen.classList.add('hidden');
+            elements.app.classList.remove('hidden');
+            applySettings();
+            init();
+        }
+
+        function logout() {
+            location.reload();
+        }
+
+        function toggleSettings() {
+            elements.settingsPanel.classList.toggle('open');
+        }
+
+        function updateSettings() {
+            state.settings.font = document.getElementById('setting-font').value;
+            state.settings.color = document.getElementById('setting-color').value;
+            localStorage.setItem('appSettings', JSON.stringify(state.settings));
+            applySettings();
+        }
+
+        function applySettings() {
+            const root = document.documentElement;
+            root.style.setProperty('--app-font', state.settings.font);
+            root.style.setProperty('--primary', state.settings.color);
+            root.style.setProperty('--primary-hover', state.settings.color + 'dd');
+        }
+
+        const html5QrCode = new Html5Qrcode("reader");
+
+        async function init() {
+            try {
+                const cameras = await Html5Qrcode.getCameras();
+                if (cameras.length > 0) {
+                    await html5QrCode.start({ facingMode: "environment" }, { fps: 10 }, () => {});
+                }
+            } catch (err) {
+                alert("Lỗi camera: Vui lòng sử dụng HTTPS hoặc Localhost để mở camera.");
+            }
+            renderTable();
+        }
+
+        elements.btnCapture.onclick = () => {
+            const video = elements.reader.querySelector('video');
+            elements.cropCanvas.width = video.videoWidth;
+            elements.cropCanvas.height = video.videoHeight;
+            elements.cropCanvas.getContext('2d').drawImage(video, 0, 0);
+            elements.cropCanvas.style.display = 'block';
+            elements.btnCapture.classList.add('hidden');
+            elements.btnRetake.classList.remove('hidden');
+            elements.btnCaptureProduct.classList.remove('hidden');
+            elements.ocrToolbar.classList.remove('hidden');
+        };
+
+        elements.btnRetake.onclick = () => {
+            elements.cropCanvas.style.display = 'none';
+            elements.productCanvas.style.display = 'none';
+            elements.btnCapture.classList.remove('hidden');
+            elements.btnRetake.classList.add('hidden');
+            elements.btnCaptureProduct.classList.add('hidden');
+            elements.ocrToolbar.classList.add('hidden');
+            elements.selectionOverlay.innerHTML = '';
+        };
+
+        elements.btnCaptureProduct.onclick = () => {
+            const video = elements.reader.querySelector('video');
+            elements.productCanvas.width = video.videoWidth;
+            elements.productCanvas.height = video.videoHeight;
+            elements.productCanvas.getContext('2d').drawImage(video, 0, 0);
+            elements.productCanvas.style.display = 'block';
+            state.capturedProductImage = elements.productCanvas.toDataURL('image/jpeg');
+            alert("Đã chụp sản phẩm. Hãy khoanh vùng Seri nếu cần.");
+        };
+
+        function setupSelection(canvas) {
+            const start = (e) => {
+                if (!state.selectedField) return;
+                state.isDrawing = true;
+                const rect = canvas.getBoundingClientRect();
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                state.startX = (clientX - rect.left) * (canvas.width / rect.width);
+                state.startY = (clientY - rect.top) * (canvas.height / rect.height);
+            };
+            const move = (e) => {
+                if (!state.isDrawing) return;
+                const rect = canvas.getBoundingClientRect();
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                const currentX = (clientX - rect.left);
+                const currentY = (clientY - rect.top);
+                
+                let box = document.getElementById('temp-box');
+                if (!box) {
+                    box = document.createElement('div');
+                    box.id = 'temp-box'; box.className = 'selection-box';
+                    elements.selectionOverlay.appendChild(box);
+                }
+                const startDX = (state.startX * rect.width / canvas.width);
+                const startDY = (state.startY * rect.height / canvas.height);
+                box.style.left = Math.min(startDX, currentX) + 'px';
+                box.style.top = Math.min(startDY, currentY) + 'px';
+                box.style.width = Math.abs(currentX - startDX) + 'px';
+                box.style.height = Math.abs(currentY - startDY) + 'px';
+            };
+            const end = async (e) => {
+                if (!state.isDrawing) return;
+                state.isDrawing = false;
+                const box = document.getElementById('temp-box');
+                if (!box) return;
+                const rect = canvas.getBoundingClientRect();
+                const w_ratio = canvas.width / rect.width;
+                const h_ratio = canvas.height / rect.height;
+                const x = parseFloat(box.style.left) * w_ratio;
+                const y = parseFloat(box.style.top) * h_ratio;
+                const w = parseFloat(box.style.width) * w_ratio;
+                const h = parseFloat(box.style.height) * h_ratio;
+                box.remove();
+                if (w > 10) processCrop(canvas, x, y, w, h);
+            };
+            canvas.addEventListener('mousedown', start); canvas.addEventListener('mousemove', move); window.addEventListener('mouseup', end);
+            canvas.addEventListener('touchstart', start); canvas.addEventListener('touchmove', move); window.addEventListener('touchend', end);
+        }
+
+        setupSelection(elements.cropCanvas);
+        setupSelection(elements.productCanvas);
+
+        document.querySelectorAll('.ocr-btn').forEach(btn => {
+            btn.onclick = () => {
+                document.querySelectorAll('.ocr-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                state.selectedField = btn.dataset.field;
+            };
+        });
+
+        async function processCrop(canvas, x, y, w, h) {
+            elements.loading.classList.remove('hidden');
+            const temp = document.createElement('canvas');
+            temp.width = w; temp.height = h;
+            temp.getContext('2d').drawImage(canvas, x, y, w, h, 0, 0, w, h);
+            
+            try {
+                if (state.selectedField === 'waybill') {
+                    try {
+                        const res = await html5QrCode.scanImage(temp, false);
+                        elements.inputWaybill.value = res;
+                        elements.loading.classList.add('hidden');
+                        return;
+                    } catch(e) {}
+                }
+                const res = await Tesseract.recognize(temp.toDataURL(), 'vie+eng');
+                const text = res.data.text.trim();
+                const field = state.selectedField;
+                if (field === 'waybill') elements.inputWaybill.value = text;
+                if (field === 'sender') elements.inputSender.value = text;
+                if (field === 'phone') elements.inputPhone.value = text.replace(/[^0-9]/g, '');
+                if (field === 'address') elements.inputAddress.value = text;
+                if (field === 'serial') elements.inputSerial.value = text;
+            } catch (err) { alert("Không nhận diện được."); }
+            elements.loading.classList.add('hidden');
+        }
+
+        document.getElementById('btn-save-product').onclick = () => {
+            if (!elements.inputWaybill.value) return alert("Chưa có mã vận đơn!");
+            const item = {
+                date: new Date().toLocaleDateString('vi-VN'),
+                waybill: elements.inputWaybill.value,
+                sender: elements.inputSender.value,
+                phone: elements.inputPhone.value,
+                address: elements.inputAddress.value,
+                serial: elements.inputSerial.value,
+                image: state.capturedProductImage
+            };
+            state.scannedData.push(item);
+            localStorage.setItem('scannedData', JSON.stringify(state.scannedData));
+            elements.inputSerial.value = '';
+            renderTable();
+            alert("Đã lưu. Có thể quét tiếp sản phẩm cho mã này.");
+        };
+
+        document.getElementById('btn-finish-waybill').onclick = () => {
+            elements.inputWaybill.value = ''; elements.inputSender.value = '';
+            elements.inputPhone.value = ''; elements.inputAddress.value = '';
+            elements.inputSerial.value = '';
+            elements.btnRetake.click();
+            alert("Sẵn sàng quét mã mới.");
+        };
+
+        function renderTable() {
+            elements.dataBody.innerHTML = state.scannedData.map(item => `
+                <tr><td>${item.date}</td><td>${item.waybill}</td><td>${item.sender}</td><td>${item.phone}</td><td>${item.serial}</td><td class="img-cell"><img src="${item.image||''}"></td></tr>
+            `).join('');
+            elements.scanCount.innerText = state.scannedData.length;
+        }
+
+        document.getElementById('btn-export-xlsx').onclick = () => {
+            const dataWithAuthor = state.scannedData.map(item => ({
+                ...item,
+                "Tác giả": "K.s : Trần Đình Nhỡ (0944 32 68 25)"
+            }));
+            const ws = XLSX.utils.json_to_sheet(dataWithAuthor);
+            const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Data");
+            XLSX.writeFile(wb, "Bao_cao_quet_TranDinhNho.xlsx");
+        };
+
+        document.getElementById('btn-export-pdf').onclick = () => {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            doc.setFontSize(10);
+            doc.setTextColor(100);
+            doc.text("Tac gia: K.s Tran Dinh Nho - DT: 0944 32 68 25", 10, 290);
+            
+            doc.setFontSize(16);
+            doc.setTextColor(0);
+            doc.text("BAO CAO QUET MA VAN DON", 10, 15);
+            
+            doc.autoTable({
+                head: [['Ngay', 'Ma VD', 'Nguoi gui', 'SDT', 'Seri']],
+                body: state.scannedData.map(i => [i.date, i.waybill, i.sender, i.phone, i.serial]),
+                startY: 25
+            });
+            state.scannedData.forEach(i => { if(i.image) { doc.addPage(); doc.text(`Ma VD: ${i.waybill}`, 10, 10); doc.addImage(i.image, 'JPEG', 10, 20, 180, 135); } });
+            doc.save("Bao_cao_quet_TranDinhNho.pdf");
+        };
+
+        document.getElementById('btn-clear-all').onclick = () => {
+            if(confirm("Xóa hết?")) { state.scannedData = []; localStorage.clear(); renderTable(); }
+        };
+
+        // init() will be called from login()
+        applySettings(); 
+    </script>
+</body>
+</html>
