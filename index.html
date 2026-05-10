@@ -186,6 +186,7 @@
         </header>
 
         <main>
+            <!-- MÀN HÌNH QUÉT (DÙNG CHUNG) -->
             <section id="scanner-section">
                 <div class="viewport-container" id="viewport-box">
                     <div id="reader"></div>
@@ -196,7 +197,7 @@
                     <div class="scanner-controls">
                         <button id="btn-capture" class="btn-primary"><i data-lucide="camera"></i> Chụp phiếu</button>
                         <button id="btn-retake" class="btn-secondary hidden"><i data-lucide="refresh-cw"></i> Chụp lại</button>
-                        <button id="btn-capture-product" class="btn-success hidden"><i data-lucide="package"></i> Chụp SP</button>
+                        <button id="btn-capture-product" class="btn-success hidden"><i data-lucide="package"></i> Chụp SP & Seri</button>
                     </div>
                 </div>
 
@@ -217,18 +218,37 @@
                 </div>
             </section>
 
-            <section id="form-section">
-                <div class="card">
+            <!-- BƯỚC 1: THÔNG TIN PHIẾU -->
+            <section id="step-1">
+                <div class="card" style="border-left: 5px solid var(--primary);">
+                    <h3 style="color: var(--primary); margin-bottom: 0.5rem; font-size: 1rem;">BƯỚC 1: QUÉT THÔNG TIN PHIẾU</h3>
                     <div class="field-group"><label>Mã vận đơn</label><input type="text" id="input-waybill" placeholder="Quét hoặc nhập mã..."></div>
                     <div class="field-group"><label>Người gửi</label><input type="text" id="input-sender" placeholder="..."></div>
                     <div class="field-group"><label>Số điện thoại</label><input type="text" id="input-phone" placeholder="..."></div>
                     <div class="field-group"><label>Địa chỉ</label><input type="text" id="input-address" placeholder="..."></div>
-                    <div class="field-group"><label>Seri sản phẩm</label><input type="text" id="input-serial" placeholder="..."></div>
                 </div>
+                <button id="btn-to-step-2" class="btn-primary" style="width: 100%; justify-content: center; padding: 1.2rem; margin-top: 1rem; border-radius: 15px; background: linear-gradient(135deg, #6366f1, #a855f7);">
+                    Xác nhận phiếu -> Sang quét SP <i data-lucide="chevron-right"></i>
+                </button>
+            </section>
 
-                <div style="display: flex; flex-direction: column; gap: 0.8rem;">
-                    <button id="btn-save-product" class="btn-success" style="width: 100%; justify-content: center; padding: 1rem;"><i data-lucide="plus-circle"></i> Lưu & Quét tiếp sản phẩm</button>
-                    <button id="btn-finish-waybill" class="btn-primary" style="width: 100%; justify-content: center; padding: 1rem;"><i data-lucide="check-check"></i> Hoàn tất & Sang mã khác</button>
+            <!-- BƯỚC 2: THÔNG TIN SẢN PHẨM -->
+            <section id="step-2" class="hidden">
+                <div class="card" style="border-left: 5px solid var(--success);">
+                    <h3 style="color: var(--success); margin-bottom: 0.5rem; font-size: 1rem;">BƯỚC 2: QUÉT SẢN PHẨM & SERI</h3>
+                    <div style="font-size: 0.8rem; color: var(--text-muted); background: rgba(0,0,0,0.2); padding: 0.6rem; border-radius: 8px; margin-bottom: 1rem; border: 1px dashed rgba(255,255,255,0.1);">
+                        Đang quét cho vận đơn: <b id="display-current-waybill" style="color: #fbbf24;">---</b>
+                    </div>
+                    <div class="field-group"><label>Seri sản phẩm</label><input type="text" id="input-serial" placeholder="Khoanh vùng seri trên ảnh sản phẩm..."></div>
+                    
+                    <div style="display: flex; flex-direction: column; gap: 0.8rem; margin-top: 1rem;">
+                        <button id="btn-save-product" class="btn-success" style="width: 100%; justify-content: center; padding: 1rem; border-radius: 12px; font-size: 1rem;">
+                            <i data-lucide="plus-circle"></i> Lưu & Quét tiếp sản phẩm
+                        </button>
+                        <button id="btn-finish-waybill" class="btn-secondary" style="width: 100%; justify-content: center; padding: 1rem; border-radius: 12px; opacity: 0.8;">
+                            <i data-lucide="check-check"></i> Hoàn tất & Sang mã mới
+                        </button>
+                    </div>
                 </div>
             </section>
 
@@ -275,6 +295,9 @@
             app: document.getElementById('app'),
             settingsPanel: document.getElementById('settings-panel'),
             btnSettings: document.getElementById('btn-settings'),
+            step1: document.getElementById('step-1'),
+            step2: document.getElementById('step-2'),
+            displayWaybill: document.getElementById('display-current-waybill'),
             reader: document.getElementById('reader'),
             cropCanvas: document.getElementById('crop-canvas'),
             productCanvas: document.getElementById('product-canvas'),
@@ -394,13 +417,39 @@
             elements.ocrToolbar.classList.remove('hidden');
         };
 
+        // Chuyển sang Bước 2
+        document.getElementById('btn-to-step-2').onclick = () => {
+            if (!elements.inputWaybill.value) return alert("Vui lòng quét hoặc nhập Mã vận đơn!");
+            
+            elements.step1.classList.add('hidden');
+            elements.step2.classList.remove('hidden');
+            elements.displayWaybill.innerText = elements.inputWaybill.value;
+            
+            // Reset scanner to show SP button
+            elements.btnRetake.click();
+            elements.btnCapture.classList.add('hidden');
+            elements.btnCaptureProduct.classList.remove('hidden');
+            document.querySelectorAll('.ocr-btn').forEach(b => {
+                if(b.dataset.field !== 'serial') b.classList.add('hidden');
+                else b.classList.remove('hidden');
+            });
+            lucide.createIcons();
+        };
+
         // Chụp lại
         elements.btnRetake.onclick = () => {
             elements.cropCanvas.style.display = 'none';
             elements.productCanvas.style.display = 'none';
-            elements.btnCapture.classList.remove('hidden');
+            
+            if (elements.step1.classList.contains('hidden')) {
+                elements.btnCapture.classList.add('hidden');
+                elements.btnCaptureProduct.classList.remove('hidden');
+            } else {
+                elements.btnCapture.classList.remove('hidden');
+                elements.btnCaptureProduct.classList.add('hidden');
+            }
+            
             elements.btnRetake.classList.add('hidden');
-            elements.btnCaptureProduct.classList.add('hidden');
             elements.ocrToolbar.classList.add('hidden');
             elements.selectionOverlay.innerHTML = '';
             document.querySelectorAll('.ocr-btn').forEach(b => b.classList.remove('active'));
@@ -541,8 +590,16 @@
             elements.inputWaybill.value = ''; elements.inputSender.value = '';
             elements.inputPhone.value = ''; elements.inputAddress.value = '';
             elements.inputSerial.value = '';
+            
+            elements.step2.classList.add('hidden');
+            elements.step1.classList.remove('hidden');
+            
+            // Reset scanner
             elements.btnRetake.click();
+            document.querySelectorAll('.ocr-btn').forEach(b => b.classList.remove('hidden'));
+            
             alert("Đã xong mã cũ. Sẵn sàng quét mã vận đơn mới.");
+            lucide.createIcons();
         };
 
         // Hiển thị bảng
