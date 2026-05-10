@@ -296,8 +296,12 @@
             elements.loginScreen.classList.add('hidden');
             elements.app.classList.remove('hidden');
             applySettings();
-            init();
-            lucide.createIcons(); // Refresh icons
+            
+            // Chờ một chút để giao diện Render xong trước khi gọi Camera
+            setTimeout(() => {
+                init();
+                lucide.createIcons();
+            }, 500);
         }
 
         function logout() {
@@ -326,25 +330,33 @@
 
         async function init() {
             try {
-                // Try to use environment camera first (mobile)
-                // If fails or not available (desktop), use any available camera
-                const constraints = { 
-                    video: { 
-                        facingMode: { ideal: "environment" } 
-                    } 
-                };
-                
+                // Kiểm tra xem trình duyệt có hỗ trợ MediaDevices không
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    throw new Error("Trình duyệt không hỗ trợ Camera.");
+                }
+
+                // Dừng scanner cũ nếu đang chạy (phòng trường hợp bấm đăng nhập nhiều lần)
+                try { await html5QrCode.stop(); } catch(e) {}
+
+                // Cách 1: Thử gọi Camera sau (mặc định cho di động)
                 await html5QrCode.start(
-                    constraints.video, 
-                    { fps: 10, qrbox: { width: 250, height: 250 } },
+                    { facingMode: "environment" }, 
+                    { fps: 15, qrbox: { width: 250, height: 250 } },
                     () => {}
                 );
             } catch (err) {
-                console.log("Retrying with simple constraints...");
+                console.warn("Thử lại Camera cách 2...", err);
                 try {
-                    await html5QrCode.start({ facingMode: "user" }, { fps: 10 }, () => {});
+                    // Cách 2: Gọi bất kỳ Camera nào có sẵn (cho máy tính/webcam)
+                    const devices = await Html5Qrcode.getCameras();
+                    if (devices && devices.length > 0) {
+                        await html5QrCode.start(devices[0].id, { fps: 15 }, () => {});
+                    } else {
+                        throw new Error("Không tìm thấy thiết bị Camera nào.");
+                    }
                 } catch (e) {
-                    alert("Lỗi camera: Vui lòng đảm bảo thiết bị có camera và bạn đang sử dụng HTTPS.");
+                    console.error("Camera fail:", e);
+                    alert("LỖI CAMERA: \n1. Hãy đảm bảo bạn đang dùng trình duyệt Chrome hoặc Safari. \n2. Hãy đóng các ứng dụng khác đang dùng Camera. \n3. Hãy thử tải lại trang (Reload).");
                 }
             }
             renderTable();
