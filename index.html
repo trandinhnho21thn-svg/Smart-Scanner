@@ -776,6 +776,9 @@
             const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
             saveAs(blob, `Bao_Cao_Quet_Full_${new Date().getTime()}.xlsx`);
             document.getElementById('loading').style.display = 'none';
+            
+            // Nhắc dọn dẹp bộ nhớ
+            setTimeout(promptClearMemory, 1000);
         };
 
         // Hàm saveAs giả lập nếu chưa có FileSaver.js
@@ -831,7 +834,19 @@
             }
             
             doc.save("Bao_Cao_Quet_Full_Watermark.pdf");
+            
+            // Nhắc dọn dẹp bộ nhớ
+            setTimeout(promptClearMemory, 1000);
         };
+
+        function promptClearMemory() {
+            if (confirm("⚠️ LỜI NHẮC HỆ THỐNG:\n\nBạn đã xuất file thành công. Để tránh tình trạng ĐẦY BỘ NHỚ trình duyệt (gây lỗi không lưu được ảnh), bạn có muốn DỌN DẸP và XÓA toàn bộ lịch sử quét cũ không?\n\n- Bấm 'OK' để Đồng ý xóa.\n- Bấm 'Cancel' để Xóa sau (Giữ lại dữ liệu).")) {
+                state.scannedData = [];
+                localStorage.removeItem('scannedData');
+                renderTable();
+                alert("✅ Đã dọn dẹp bộ nhớ sạch sẽ!");
+            }
+        }
 
         document.getElementById('btn-clear').onclick = () => {
             if(confirm("Xóa hết dữ liệu?")) { state.scannedData = []; localStorage.clear(); renderTable(); }
