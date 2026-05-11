@@ -64,6 +64,53 @@
         #selection-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 20; }
         .selection-box { position: absolute; border: 3px solid #fff; box-shadow: 0 0 0 9999px rgba(0,0,0,0.5), 0 0 15px var(--primary); pointer-events: none; }
         
+        /* Focus Overlay Styles */
+        #focus-overlay { position: absolute; inset: 0; pointer-events: none; display: none; z-index: 30; }
+        #focus-overlay.active { display: block; }
+        .focus-window { 
+            position: absolute; 
+            border: 2px dashed rgba(255, 255, 255, 0.5); 
+            border-radius: 8px; 
+            background: rgba(255, 255, 255, 0.05);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 0.6rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            pointer-events: auto;
+            cursor: move;
+        }
+        .focus-window::before {
+            content: attr(data-label);
+            position: absolute;
+            top: -18px;
+            left: 0;
+            background: var(--primary);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.5rem;
+        }
+        .focus-window.active { border: 2px solid var(--primary); background: rgba(99, 102, 241, 0.2); }
+        
+        /* Tap to Focus Animation */
+        .tap-focus-ring {
+            position: absolute;
+            width: 60px;
+            height: 60px;
+            border: 2px solid var(--primary);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 100;
+            animation: focus-ping 0.5s ease-out forwards;
+        }
+        @keyframes focus-ping {
+            0% { transform: scale(0.5); opacity: 1; }
+            100% { transform: scale(1.5); opacity: 0; }
+        }
+        
         .modal-controls { padding: 1.5rem; background: var(--bg-dark); display: flex; flex-direction: column; gap: 1rem; z-index: 10; }
         .btn-action { padding: 1rem; border-radius: 50px; border: none; font-weight: 700; font-size: 1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.5rem; }
         .btn-main { background: var(--primary); color: white; }
@@ -202,10 +249,21 @@
             <button onclick="closeScanner()" style="background:none; border:none; color:white;"><i data-lucide="x"></i></button>
         </div>
         
-        <div class="viewport-container">
+        <div class="viewport-container" id="viewport-container">
             <div id="reader"></div>
             <canvas id="crop-canvas"></canvas>
             <div id="selection-overlay"></div>
+            
+            <!-- Guided Focus Overlay -->
+            <div id="focus-overlay">
+                <!-- Preset for Nhat Tin Layout -->
+                <div class="focus-window" id="fw-waybill" data-label="Mã vận đơn" style="top: 10%; left: 25%; width: 50%; height: 15%;"></div>
+                <div class="focus-window" id="fw-sender" data-label="Người gửi" style="top: 35%; left: 5%; width: 45%; height: 10%;"></div>
+                <div class="focus-window" id="fw-phone" data-label="Số điện thoại" style="top: 47%; left: 5%; width: 45%; height: 8%;"></div>
+                <div class="focus-window" id="fw-address" data-label="Địa chỉ" style="top: 57%; left: 5%; width: 45%; height: 12%;"></div>
+                <!-- Serial Focus Window -->
+                <div class="focus-window" id="fw-serial" data-label="Mã Seri Sản phẩm" style="top: 40%; left: 10%; width: 80%; height: 20%; display: none;"></div>
+            </div>
         </div>
 
         <div class="modal-controls">
@@ -215,6 +273,7 @@
             </div>
 
             <button id="btn-capture" class="btn-action btn-main"><i data-lucide="camera"></i> Chụp ảnh & Khoanh vùng</button>
+            <button id="btn-focus-mode" class="btn-action" style="background: rgba(99, 102, 241, 0.2); border: 1px solid var(--primary); color: white;"><i data-lucide="target"></i> BẬT KHUNG CĂN CHỈNH</button>
             <button id="btn-upload" class="btn-action" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white;"><i data-lucide="image"></i> Tải ảnh từ máy</button>
             <button onclick="closeScanner()" class="btn-action" style="background:none; border:1px solid rgba(255,255,255,0.2); color:var(--text-muted);"><i data-lucide="arrow-left"></i> Quay lại (Hủy quét)</button>
             <button id="btn-retake" class="btn-action btn-main hidden" style="background:#444;"><i data-lucide="refresh-cw"></i> Chụp lại</button>
@@ -241,7 +300,8 @@
             startX: 0, startY: 0, isDrawing: false,
             capturedImage: null,
             productImages: [], // Danh sách ảnh toàn cảnh
-            scanner: null
+            scanner: null,
+            isFocusMode: false
         };
 
         function login(role) {
@@ -313,6 +373,73 @@
                 const video = document.querySelector('#reader video');
                 if(video) video.style.filter = `brightness(${e.target.value}%) contrast(110%)`;
             };
+
+            // Auto Focus & Tap to Focus
+            const viewport = document.getElementById('viewport-container');
+            viewport.onclick = (e) => {
+                if (state.isCaptured) return;
+                showFocusRing(e.clientX, e.clientY);
+                applyAutoFocus();
+            };
+
+            // Set default Focus Mode for auto-all
+            if (field === 'auto-all') {
+                toggleFocusMode(true);
+            } else {
+                toggleFocusMode(false);
+            }
+        }
+
+        function toggleFocusMode(force) {
+            state.isFocusMode = force !== undefined ? force : !state.isFocusMode;
+            const overlay = document.getElementById('focus-overlay');
+            const btn = document.getElementById('btn-focus-mode');
+            
+            // Ẩn/hiện các khung dựa trên trường hiện tại
+            const isWaybillGroup = state.currentField === 'waybill' || state.currentField === 'auto-all';
+            const isSerial = state.currentField === 'serial';
+
+            document.getElementById('fw-waybill').style.display = (isWaybillGroup) ? 'flex' : 'none';
+            document.getElementById('fw-sender').style.display = (isWaybillGroup) ? 'flex' : 'none';
+            document.getElementById('fw-phone').style.display = (isWaybillGroup) ? 'flex' : 'none';
+            document.getElementById('fw-address').style.display = (isWaybillGroup) ? 'flex' : 'none';
+            document.getElementById('fw-serial').style.display = (isSerial) ? 'flex' : 'none';
+
+            if (state.isFocusMode) {
+                overlay.classList.add('active');
+                btn.innerHTML = '<i data-lucide="target"></i> TẮT KHUNG CĂN CHỈNH';
+                document.getElementById('btn-capture').innerHTML = isSerial ? '<i data-lucide="sparkles"></i> QUÉT SERI THEO KHUNG' : '<i data-lucide="sparkles"></i> QUÉT TẤT CẢ THEO KHUNG';
+            } else {
+                overlay.classList.remove('active');
+                btn.innerHTML = '<i data-lucide="target"></i> BẬT KHUNG CĂN CHỈNH';
+                document.getElementById('btn-capture').innerHTML = '<i data-lucide="camera"></i> Chụp ảnh & Khoanh vùng';
+            }
+            lucide.createIcons();
+        }
+
+        document.getElementById('btn-focus-mode').onclick = () => toggleFocusMode();
+
+        async function applyAutoFocus() {
+            try {
+                const video = document.querySelector('#reader video');
+                if (!video || !video.srcObject) return;
+                const track = video.srcObject.getVideoTracks()[0];
+                const capabilities = track.getCapabilities();
+                if (capabilities.focusMode) {
+                    await track.applyConstraints({
+                        advanced: [{ focusMode: "continuous" }]
+                    });
+                }
+            } catch (e) { console.warn("Auto-focus constraint failed:", e); }
+        }
+
+        function showFocusRing(x, y) {
+            const ring = document.createElement('div');
+            ring.className = 'tap-focus-ring';
+            ring.style.left = (x - 30) + 'px';
+            ring.style.top = (y - 30) + 'px';
+            document.body.appendChild(ring);
+            setTimeout(() => ring.remove(), 500);
         }
 
         function closeScanner() {
@@ -351,7 +478,16 @@
                 addExtraImage(canvas);
             }
             if(state.currentField === 'auto-all') {
-                processAutoDetection(canvas);
+                if (state.isFocusMode) {
+                    processGuidedDetection(canvas);
+                } else {
+                    processAutoDetection(canvas);
+                }
+            }
+            if(state.currentField === 'serial' && state.isFocusMode) {
+                processGuidedSerialDetection(canvas);
+            } else if (state.currentField === 'serial') {
+                processSerialDetection(canvas);
             }
         };
 
@@ -538,6 +674,130 @@
             document.getElementById('loading').style.display = 'none';
         }
 
+        async function processGuidedDetection(canvas) {
+            document.getElementById('loading').style.display = 'flex';
+            document.getElementById('loading-text').innerText = "Đang quét theo khung...";
+            
+            const results = { waybill: "", sender: "", phone: "", address: "" };
+            const windows = [
+                { id: 'fw-waybill', field: 'waybill' },
+                { id: 'fw-sender', field: 'sender' },
+                { id: 'fw-phone', field: 'phone' },
+                { id: 'fw-address', field: 'address' }
+            ];
+
+            const viewport = document.getElementById('reader');
+            const rect = viewport.getBoundingClientRect();
+            const wR = canvas.width / rect.width;
+            const hR = canvas.height / rect.height;
+
+            const worker = await Tesseract.createWorker('vie+eng');
+
+            for (const win of windows) {
+                const el = document.getElementById(win.id);
+                const winRect = el.getBoundingClientRect();
+                const parentRect = viewport.getBoundingClientRect();
+                
+                const x = (winRect.left - parentRect.left) * wR;
+                const y = (winRect.top - parentRect.top) * hR;
+                const w = winRect.width * wR;
+                const h = winRect.height * hR;
+
+                const temp = document.createElement('canvas');
+                temp.width = w; temp.height = h;
+                const ctx = temp.getContext('2d');
+                ctx.filter = 'contrast(1.3) brightness(1.1) grayscale(1)';
+                ctx.drawImage(canvas, x, y, w, h, 0, 0, w, h);
+
+                try {
+                    let text = "";
+                    if (win.field === 'waybill') {
+                        try { 
+                            const res = await state.scanner.scanImage(temp, false);
+                            if (res) text = res;
+                        } catch(e) {}
+                    }
+                    
+                    if (!text) {
+                        const res = await worker.recognize(temp.toDataURL());
+                        text = res.data.text.trim();
+                    }
+
+                    if (win.field === 'phone') text = text.replace(/[^0-9]/g, '');
+                    results[win.field] = text;
+                } catch (e) { console.error(`Error scanning ${win.field}:`, e); }
+            }
+
+            await worker.terminate();
+
+            document.getElementById('in-waybill').value = results.waybill;
+            document.getElementById('in-sender').value = results.sender;
+            document.getElementById('in-phone').value = results.phone;
+            document.getElementById('in-address').value = results.address;
+
+            document.getElementById('loading').style.display = 'none';
+            alert("Đã nhận diện xong theo khung căn chỉnh!");
+            closeScanner();
+        }
+
+        async function processGuidedSerialDetection(canvas) {
+            document.getElementById('loading').style.display = 'flex';
+            document.getElementById('loading-text').innerText = "Đang quét Seri theo khung...";
+            
+            const viewport = document.getElementById('reader');
+            const rect = viewport.getBoundingClientRect();
+            const wR = canvas.width / rect.width;
+            const hR = canvas.height / rect.height;
+
+            const el = document.getElementById('fw-serial');
+            const winRect = el.getBoundingClientRect();
+            const parentRect = viewport.getBoundingClientRect();
+            
+            const x = (winRect.left - parentRect.left) * wR;
+            const y = (winRect.top - parentRect.top) * hR;
+            const w = winRect.width * wR;
+            const h = winRect.height * hR;
+
+            const temp = document.createElement('canvas');
+            temp.width = w; temp.height = h;
+            const ctx = temp.getContext('2d');
+            ctx.filter = 'contrast(1.4) brightness(1.1) grayscale(1)';
+            ctx.drawImage(canvas, x, y, w, h, 0, 0, w, h);
+
+            try {
+                let text = "";
+                // Thử quét Barcode Seri trước
+                try { 
+                    const res = await state.scanner.scanImage(temp, false);
+                    if (res) text = res;
+                } catch(e) {}
+                
+                if (!text) {
+                    const res = await Tesseract.recognize(temp.toDataURL(), 'eng');
+                    const fullText = res.data.text.trim();
+                    const serialMatch = fullText.match(/[A-Z0-9]{6,25}/);
+                    text = serialMatch ? serialMatch[0] : fullText.split('\n')[0];
+                }
+
+                document.getElementById('in-serial').value = text;
+                state.capturedImage = compressImage(canvas);
+                updateImagePreviews();
+                
+                if (text && text.length > 2) {
+                    alert("Đã nhận diện Seri: " + text);
+                    closeScanner();
+                } else {
+                    alert("Không tìm thấy Seri rõ ràng. Hãy nhập tay hoặc khoanh vùng lại.");
+                    document.getElementById('verify-input').value = text || "";
+                    document.getElementById('verify-box').classList.add('show');
+                }
+            } catch (e) { 
+                console.error("Serial Guided Error:", e);
+                alert("Lỗi khi quét Seri.");
+            }
+            document.getElementById('loading').style.display = 'none';
+        }
+
         async function processSerialDetection(canvas) {
             document.getElementById('loading').style.display = 'flex';
             document.getElementById('loading-text').innerText = "Đang tìm số Seri...";
@@ -608,7 +868,7 @@
         }
 
         function compressImage(originalCanvas) {
-            const targetWidth = 1024;
+            const targetWidth = 800; // Giảm xuống 800px để tối ưu bộ nhớ trên mobile
             const scaleFactor = targetWidth / originalCanvas.width;
             const temp = document.createElement('canvas');
             temp.width = targetWidth;
@@ -617,7 +877,7 @@
             ctx.imageSmoothingEnabled = true;
             ctx.imageSmoothingQuality = 'high';
             ctx.drawImage(originalCanvas, 0, 0, temp.width, temp.height);
-            return temp.toDataURL('image/jpeg', 0.8); 
+            return temp.toDataURL('image/jpeg', 0.7); // Giảm chất lượng xuống 0.7 để giảm dung lượng DataURL
         }
 
         document.getElementById('btn-confirm-ok').onclick = () => {
@@ -771,9 +1031,9 @@
                                 extension: 'jpeg',
                             });
                             worksheet.addImage(imageId, {
-                                tl: { col: 7 + imgIdx + 0.05, row: rowIndex - 0.95 }, 
-                                ext: { width: 100, height: 80 },
-                                editAs: 'oneCell' // Giữ ảnh trong ô tốt hơn trên mobile
+                                tl: { col: 7 + imgIdx, row: rowIndex - 1 }, 
+                                br: { col: 8 + imgIdx, row: rowIndex },
+                                editAs: 'oneCell'
                             });
                         } catch (e) { console.error("Excel Image Error:", e); }
                     }

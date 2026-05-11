@@ -340,33 +340,64 @@ document.getElementById('btn-export-xlsx').addEventListener('click', () => {
 });
 
 document.getElementById('btn-export-pdf').addEventListener('click', async () => {
+    if (state.scannedData.length === 0) return alert("Không có dữ liệu để xuất!");
+    
     const { jsPDF } = window.jspdf;
-    const doc = new jsPDF('p', 'mm', 'a4');
+    const doc = new jsPDF('l', 'mm', 'a4');
     
-    doc.setFontSize(16);
-    doc.text("BAO CAO QUET MA VAN DON & SAN PHAM", 10, 15);
+    // Calculate max images
+    let maxImages = 1;
+    state.scannedData.forEach(item => {
+        const count = (item.images ? item.images.length : (item.image ? 1 : 0));
+        if (count > maxImages) maxImages = count;
+    });
+
+    const head = [['STT', 'Ngay', 'Ma VD', 'Nguoi gui', 'Dia chi', 'SDT', 'Seri']];
+    for (let i = 1; i <= maxImages; i++) {
+        head[0].push(`Anh ${i}`);
+    }
+
+    const tableData = state.scannedData.map((item, idx) => {
+        const row = [
+            idx + 1, 
+            item.date, 
+            item.waybill, 
+            item.sender, 
+            item.address, 
+            item.phone, 
+            item.serial
+        ];
+        for (let i = 0; i < maxImages; i++) row.push('');
+        return row;
+    });
     
-    const tableData = state.scannedData.map(item => [
-        item.date, item.waybill, item.sender, item.phone, item.serial
-    ]);
+    doc.setFontSize(18);
+    doc.text("BAO CAO QUET MA VAN DON & SAN PHAM", 14, 15);
     
     doc.autoTable({
-        head: [['Ngay', 'Ma VD', 'Nguoi gui', 'SDT', 'Seri']],
+        head: head,
         body: tableData,
         startY: 25,
         theme: 'grid',
-        headStyles: { fillColor: [99, 102, 241] }
+        styles: { fontSize: 7, verticalAlign: 'middle' },
+        headStyles: { fillColor: [99, 102, 241], halign: 'center' },
+        didDrawCell: (data) => {
+            if (data.section === 'body' && data.column.index >= 7) {
+                const rowIndex = data.row.index;
+                const item = state.scannedData[rowIndex];
+                const images = item.images || (item.image ? [item.image] : []);
+                const imgIdx = data.column.index - 7;
+                
+                if (images[imgIdx] && images[imgIdx].length > 10 && images[imgIdx] !== 'data:,') {
+                    try {
+                        doc.addImage(images[imgIdx], 'JPEG', data.cell.x + 1, data.cell.y + 1, data.cell.width - 2, data.cell.height - 2, undefined, 'FAST');
+                    } catch (e) { console.error("PDF Image Error:", e); }
+                }
+            }
+        },
+        bodyStyles: { minCellHeight: 15 }
     });
 
-    // Add images on separate pages or at the end
-    state.scannedData.forEach((item, index) => {
-        if (item.image) {
-            doc.addPage();
-            doc.text(`Anh san pham - Ma VD: ${item.waybill} - Seri: ${item.serial}`, 10, 10);
-            doc.addImage(item.image, 'JPEG', 10, 20, 180, 135);
-        }
-    });
-    
     doc.save(`Scan_Report_${new Date().getTime()}.pdf`);
 });
 
