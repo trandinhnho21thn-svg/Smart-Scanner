@@ -205,14 +205,19 @@
                     <button class="btn-scan-trigger" onclick="openScanner('address')"><i data-lucide="camera"></i></button>
                 </div>
                 
-                <button id="btn-next" class="btn-action btn-main" style="width:100%; margin-top:1rem;">Tiếp tục quét SP <i data-lucide="arrow-right"></i></button>
+                <div class="field-row">
+                    <div class="field-group"><label>Tên sản phẩm</label><input type="text" id="in-product-name" placeholder="Ví dụ: Bếp điện từ, Nồi chiên..."></div>
+                </div>
+                
+                <button id="btn-next" class="btn-action btn-main" style="width:100%; margin-top:1rem;">Tiếp tục chụp ảnh SP <i data-lucide="arrow-right"></i></button>
                 <button onclick="goToHome()" class="btn-action" style="width:100%; margin-top:0.5rem; background:rgba(255,255,255,0.05); color:var(--text-muted); border:1px solid rgba(255,255,255,0.1); font-size:0.8rem;"><i data-lucide="log-out"></i> Thoát ra trang chủ</button>
             </section>
 
             <!-- BƯỚC 2 -->
             <section id="step-2-ui" class="step-card hidden">
                 <div class="step-title"><i data-lucide="package"></i> THÔNG TIN SẢN PHẨM</div>
-                <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1rem;">Phiếu: <b id="cur-waybill">...</b></div>
+                <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem;">Phiếu: <b id="cur-waybill">...</b></div>
+                <div style="font-size: 0.8rem; color: var(--primary-light); margin-bottom: 1rem;">Sản phẩm: <b id="cur-product-name">...</b></div>
                 
                 <div class="field-row">
                     <div class="field-group"><label>Mã Seri sản phẩm</label><input type="text" id="in-serial" placeholder="..."></div>
@@ -237,7 +242,7 @@
 
             <section id="data-ui">
                 <div class="step-title"><i data-lucide="database"></i> LỊCH SỬ QUÉT (<span id="total-count">0</span>)</div>
-                <div class="table-container"><table id="log-table"><thead><tr><th>VD</th><th>Seri</th><th>Ảnh</th></tr></thead><tbody></tbody></table></div>
+                <div class="table-container"><table id="log-table"><thead><tr><th>VD</th><th>Tên SP</th><th>Seri</th><th>Ảnh</th></tr></thead><tbody></tbody></table></div>
             </section>
         </main>
     </div>
@@ -340,9 +345,17 @@
                             document.getElementById('btn-retake').classList.remove('hidden');
                             
                             if (state.currentField === 'auto-all') {
-                                processAutoDetection(canvas);
+                                if (state.isFocusMode) {
+                                    processGuidedDetection(canvas);
+                                } else {
+                                    processAutoDetection(canvas);
+                                }
                             } else if (state.currentField === 'serial') {
-                                processSerialDetection(canvas);
+                                if (state.isFocusMode) {
+                                    processGuidedSerialDetection(canvas);
+                                } else {
+                                    processSerialDetection(canvas);
+                                }
                             } else if (state.currentField === 'product_extra') {
                                 addExtraImage(canvas);
                             }
@@ -471,9 +484,6 @@
             state.isCaptured = true;
             document.getElementById('btn-capture').classList.add('hidden');
             document.getElementById('btn-retake').classList.remove('hidden');
-            if(state.currentField === 'serial') {
-                processSerialDetection(canvas);
-            }
             if(state.currentField === 'product_extra') {
                 addExtraImage(canvas);
             }
@@ -664,6 +674,7 @@
                 document.getElementById('in-sender').value = result.sender || "";
                 document.getElementById('in-phone').value = result.phone || "";
                 document.getElementById('in-address').value = result.address || "";
+                document.getElementById('in-product-name').value = result.productName || "";
 
                 alert("Đã tự động nhận diện xong!");
                 closeScanner();
@@ -734,6 +745,7 @@
             document.getElementById('in-sender').value = results.sender;
             document.getElementById('in-phone').value = results.phone;
             document.getElementById('in-address').value = results.address;
+            // Tên sản phẩm thường không có khung riêng cố định, nhưng có thể lấy từ heuristic nếu cần
 
             document.getElementById('loading').style.display = 'none';
             alert("Đã nhận diện xong theo khung căn chỉnh!");
@@ -895,6 +907,7 @@
             document.getElementById('step-1-ui').classList.add('hidden');
             document.getElementById('step-2-ui').classList.remove('hidden');
             document.getElementById('cur-waybill').innerText = document.getElementById('in-waybill').value;
+            document.getElementById('cur-product-name').innerText = document.getElementById('in-product-name').value || '(chưa nhập)';
         };
 
         function saveProduct() {
@@ -908,6 +921,7 @@
                 sender: document.getElementById('in-sender').value,
                 phone: document.getElementById('in-phone').value,
                 address: document.getElementById('in-address').value,
+                productName: document.getElementById('in-product-name').value,
                 serial: serial,
                 images: [state.capturedImage, ...state.productImages].filter(img => img !== null)
             };
@@ -944,6 +958,7 @@
             document.getElementById('in-sender').value = '';
             document.getElementById('in-phone').value = '';
             document.getElementById('in-address').value = '';
+            document.getElementById('in-product-name').value = '';
             document.getElementById('serial-preview-box').classList.add('hidden');
             document.getElementById('step-2-ui').classList.add('hidden');
             document.getElementById('step-1-ui').classList.remove('hidden');
@@ -960,6 +975,7 @@
                 return `
                     <tr>
                         <td>${item.waybill}</td>
+                        <td>${item.productName || ''}</td>
                         <td>${item.serial}</td>
                         <td>${imgHtml}</td>
                     </tr>
@@ -992,6 +1008,7 @@
                 { header: 'Người gửi', key: 'sender', width: 20 },
                 { header: 'Địa chỉ', key: 'address', width: 30 },
                 { header: 'Số điện thoại', key: 'phone', width: 15 },
+                { header: 'Tên sản phẩm', key: 'productName', width: 20 },
                 { header: 'Seri sản phẩm', key: 'serial', width: 20 }
             ];
 
@@ -1015,6 +1032,7 @@
                     sender: item.sender,
                     address: item.address,
                     phone: item.phone,
+                    productName: item.productName,
                     serial: item.serial
                 };
                 const row = worksheet.addRow(rowData);
@@ -1031,8 +1049,8 @@
                                 extension: 'jpeg',
                             });
                             worksheet.addImage(imageId, {
-                                tl: { col: 7 + imgIdx, row: rowIndex - 1 }, 
-                                br: { col: 8 + imgIdx, row: rowIndex },
+                                tl: { col: 8 + imgIdx, row: rowIndex - 1 }, 
+                                br: { col: 9 + imgIdx, row: rowIndex },
                                 editAs: 'oneCell'
                             });
                         } catch (e) { console.error("Excel Image Error:", e); }
@@ -1075,7 +1093,7 @@
             });
 
             // Tiêu đề cột giống Excel (không dấu để tránh lỗi font PDF mặc định)
-            const head = [['STT', 'Ngay', 'Ma van don', 'Nguoi gui', 'Dia chi', 'So dien thoai', 'Seri san pham']];
+            const head = [['STT', 'Ngay', 'Ma van don', 'Nguoi gui', 'Dia chi', 'So dien thoai', 'Ten san pham', 'Seri san pham']];
             for (let i = 1; i <= maxImages; i++) {
                 head[0].push(`Anh ${i}`);
             }
@@ -1089,6 +1107,7 @@
                     item.sender, 
                     item.address, 
                     item.phone, 
+                    item.productName,
                     item.serial
                 ];
                 // Thêm ô trống cho các cột ảnh
@@ -1123,17 +1142,18 @@
                     1: { cellWidth: 18 }, // Ngay
                     2: { cellWidth: 25 }, // Ma VD
                     3: { cellWidth: 25 }, // Nguoi gui
-                    4: { cellWidth: 40 }, // Dia chi
-                    5: { cellWidth: 20 }, // SDT
-                    6: { cellWidth: 25 }, // Seri
+                    4: { cellWidth: 35 }, // Dia chi
+                    5: { cellWidth: 18 }, // SDT
+                    6: { cellWidth: 22 }, // Ten SP
+                    7: { cellWidth: 25 }, // Seri
                 },
                 // Vẽ ảnh vào các cột tương ứng
                 didDrawCell: (data) => {
-                    if (data.section === 'body' && data.column.index >= 7) {
+                    if (data.section === 'body' && data.column.index >= 8) {
                         const rowIndex = data.row.index;
                         const item = state.scannedData[rowIndex];
                         const images = item.images || (item.image ? [item.image] : []);
-                        const imgIdx = data.column.index - 7;
+                        const imgIdx = data.column.index - 8;
                         
                         if (images[imgIdx] && images[imgIdx].length > 10 && images[imgIdx] !== 'data:,') {
                             try {
